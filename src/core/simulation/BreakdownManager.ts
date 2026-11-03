@@ -1,11 +1,6 @@
 import { Robot, WarehouseTask, SimulationEvent } from '../types';
 
 export class BreakdownManager {
-  /**
-   * Triggers a breakdown on a robot.
-   * If robot was carrying an item or executing a task, returns the task
-   * to be re-allocated with elevated priority.
-   */
   public static triggerBreakdown(
     robot: Robot,
     activeTask: WarehouseTask | undefined,
@@ -21,8 +16,6 @@ export class BreakdownManager {
 
     if (activeTask && activeTask.id === robot.currentTaskId) {
       if (robot.isCarrying && robot.cargoCount > 0) {
-        // Case B: Robot breaks down WHILE CARRYING cargo
-        // Cargo remains frozen on the broken robot. Mark task as ITEM_RECOVERY_REQUIRED.
         affectedTask = {
           ...activeTask,
           status: 'in_progress',
@@ -32,15 +25,13 @@ export class BreakdownManager {
           brokenRobotId: robot.id,
           reassignmentCount: (activeTask.reassignmentCount || 0) + 1,
         };
-        // Keep cargo on robot
         robot.blockedReason = `BREAKDOWN: Frozen at (${robot.gridPosition.x}, ${robot.gridPosition.y}) holding cargo (${robot.carriedItemName}). Awaiting recovery robot.`;
       } else {
-        // Case A: Robot breaks down BEFORE picking up item
         affectedTask = {
           ...activeTask,
           status: 'queued',
           phase: 'UNASSIGNED',
-          priority: 'critical', // Elevate priority for re-enqueued task
+          priority: 'critical',
           assignedRobotId: undefined,
           reassignmentCount: (activeTask.reassignmentCount || 0) + 1,
         };
@@ -70,9 +61,6 @@ export class BreakdownManager {
     return { affectedTask, event };
   }
 
-  /**
-   * Repairs a broken robot and restores it to idle state.
-   */
   public static repairRobot(robot: Robot): SimulationEvent {
     robot.state = 'idle';
     robot.health = 100;
