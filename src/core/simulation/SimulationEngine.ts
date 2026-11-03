@@ -69,19 +69,16 @@ export class SimulationEngine {
   public aisleNodes: WarehouseNode[] = [];
   public shelfIdToFacingAisle: Map<string, GridCoord> = new Map();
 
-  // Inventory Products
   public products: Map<string, Product> = new Map();
 
-  // Core Data Structures
   public robotMap: HashMap<string, Robot> = new HashMap();
   public taskMap: HashMap<string, WarehouseTask> = new HashMap();
-  public urgentTaskQueue: PriorityQueue<WarehouseTask> = new PriorityQueue(); // Priority Queue
-  public normalTaskQueue: Queue<WarehouseTask> = new Queue(); // FIFO Queue
-  public chargingQueue: Queue<string> = new Queue(); // FIFO charging queue
-  public eventHistory: LinkedList<SimulationEvent> = new LinkedList(); // Doubly Linked List
-  public eventStack: Stack<SimulationEvent> = new Stack(); // LIFO Stack
+  public urgentTaskQueue: PriorityQueue<WarehouseTask> = new PriorityQueue();
+  public normalTaskQueue: Queue<WarehouseTask> = new Queue();
+  public chargingQueue: Queue<string> = new Queue();
+  public eventHistory: LinkedList<SimulationEvent> = new LinkedList();
+  public eventStack: Stack<SimulationEvent> = new Stack();
 
-  // Subsystems
   public collisionAvoidance: CollisionAvoidance = new CollisionAvoidance();
   public shelfAccessManager: ShelfAccessManager = new ShelfAccessManager();
   public deadlockDetector: DeadlockDetector = new DeadlockDetector();
@@ -89,14 +86,12 @@ export class SimulationEngine {
   public activeScenario: Scenario | null = null;
   public scenarioStatus: 'in_progress' | 'won' | 'lost' = 'in_progress';
 
-  // Simulation Clock & State
-  public isRunning: boolean = true; // RUNNING BY DEFAULT
+  public isRunning: boolean = true;
   public speedMultiplier: number = 1.0;
-  public simulationTime: number = 0; // seconds
+  public simulationTime: number = 0;
   private lastTaskSpawnTime: number = 0;
   private lastMetricSampleTime: number = 0;
 
-  // Analytics accumulation
   public metrics: SimulationMetrics = {
     tasksCompleted: 0,
     tasksFailed: 0,
@@ -139,7 +134,7 @@ export class SimulationEngine {
       packingStationCount: 2,
       pickupStationCount: 2,
       deliveryNodeCount: 3,
-      autoTaskGeneration: false, // DISABLED BY DEFAULT: robots only perform tasks explicitly created by the user
+      autoTaskGeneration: false,
       taskGenerationRate: 8,
       robotSpeed: 2.8,
       batteryCapacity: 5000,
@@ -164,10 +159,8 @@ export class SimulationEngine {
     this.shelfIdToFacingAisle = generated.shelfIdToFacingAisle;
     this.trafficManager = generated.trafficManager;
 
-    // Initialize ShelfAccessManager resources
     this.initShelfAccessManager();
 
-    // Load initial products into inventory
     for (const p of generated.initialProducts) {
       this.products.set(p.id, p);
     }
@@ -240,25 +233,24 @@ export class SimulationEngine {
 
   public initializeRobots(): void {
     this.robotMap.clear();
-    // Reset waiting bays
     for (const bay of this.waitingNodes) {
       bay.isOccupied = false;
       bay.occupyingRobotId = undefined;
     }
 
     const colors = [
-      '#00f0ff', // Cyan
-      '#3b82f6', // Blue
-      '#a855f7', // Purple
-      '#f59e0b', // Amber
-      '#10b981', // Emerald
-      '#ec4899', // Pink
-      '#6366f1', // Indigo
-      '#14b8a6', // Teal
-      '#eab308', // Yellow
-      '#84cc16', // Lime
-      '#f97316', // Orange
-      '#06b6d4', // Sky
+      '#00f0ff',
+      '#3b82f6',
+      '#a855f7',
+      '#f59e0b',
+      '#10b981',
+      '#ec4899',
+      '#6366f1',
+      '#14b8a6',
+      '#eab308',
+      '#84cc16',
+      '#f97316',
+      '#06b6d4',
     ];
 
     const aisleList = this.aisleNodes.filter(n => n.y >= 2 && n.y < this.config.length - 1 && !n.isDockingZone);
@@ -266,7 +258,6 @@ export class SimulationEngine {
 
     for (let i = 0; i < this.config.robotCount; i++) {
       const robotId = `R-${i + 1}`;
-      // Find assigned home dock in row 0
       const dock = this.chargingStations.find(d => d.assignedRobotId === robotId) ||
                    this.chargingStations[i % this.chargingStations.length];
 
@@ -289,10 +280,10 @@ export class SimulationEngine {
         position: { x: spawnNode.x, y: 0.25, z: spawnNode.y },
         gridPosition: { x: spawnNode.x, y: spawnNode.y },
         heading: 0,
-        battery: 100, // Fully charged at home dock ready for tasks
+        battery: 100,
         maxSpeed: this.config.robotSpeed * (0.95 + Math.random() * 0.1),
         loadCapacity: 50,
-        maxCapacity: 3, // Strictly maximum 3 items
+        maxCapacity: 3,
         cargoCount: 0,
         cargoItems: [],
         isCarrying: false,
@@ -321,17 +312,11 @@ export class SimulationEngine {
     this.eventHistory.append(event);
     this.eventStack.push(event);
 
-    // Limit event history to 300 to keep memory optimal
     if (this.eventHistory.size() > 300) {
       this.eventHistory.shift();
     }
   }
 
-  /**
-   * Validates and synchronizes task states with robot states (Section 1-5).
-   * Enforces single source of truth, eliminates stale 'EN ROUTING' or pending states,
-   * detects impossible states, and automatically resolves completions.
-   */
   public validateAndSyncTaskStates(): void {
     const allRobots = this.robotMap.values();
     const activeTasks = this.taskMap.values().filter(
@@ -339,12 +324,10 @@ export class SimulationEngine {
     );
 
     for (const task of activeTasks) {
-      // Parent tasks with subtasks are umbrella tracking tasks, not directly executed by robots
       if (task.subtaskIds && task.subtaskIds.length > 0) {
         continue;
       }
 
-      // 1. If no assigned robot, return task to queue
       if (!task.assignedRobotId) {
         task.status = 'queued';
         task.progress = 0;
@@ -369,7 +352,6 @@ export class SimulationEngine {
         continue;
       }
 
-      // Check arrival at delivery destination (authoritative check once route finishes)
       const routeFinished = !robot.currentRoute || robot.currentRoute.length === 0 || robot.currentRouteIndex >= robot.currentRoute.length;
       const isAtDelivery = routeFinished &&
                            (robot.targetType === 'DELIVERY' || robot.isCarrying) &&
@@ -377,13 +359,11 @@ export class SimulationEngine {
                             (Math.abs(robot.position.x - task.destinationCoord.x) <= 0.25 && Math.abs(robot.position.z - task.destinationCoord.y) <= 0.25));
 
       if (isAtDelivery) {
-        // Fallback for stale uncompleted delivery where animation has already lapsed or robot became idle/stuck
         if (robot.state !== 'aligning_delivery' && robot.state !== 'delivering' && robot.state !== 'unloading') {
           if (robot.isCarrying) {
             this.completeDeliverySequence(robot);
             continue;
           } else if (task.status === 'delivering' || task.status === 'in_progress') {
-            // Task was not transitioned to completed despite robot dropping cargo: resolve immediately
             task.status = 'completed';
             task.progress = 100;
             task.completedAt = this.simulationTime;
@@ -396,7 +376,6 @@ export class SimulationEngine {
         }
       }
 
-      // Check arrival at pickup destination (only once route finishes or robot is explicitly targeting pickup)
       const isAtPickup = routeFinished &&
                          (robot.targetType === 'PICKUP' || robot.state === 'moving_to_pickup' || robot.state === 'moving_to_task') &&
                          ((robot.gridPosition.x === task.pickupCoord.x && robot.gridPosition.y === task.pickupCoord.y) ||
@@ -413,7 +392,6 @@ export class SimulationEngine {
         }
       }
 
-      // Check if task is in progress (carrying cargo)
       if (robot.isCarrying && robot.currentTaskId === task.id) {
         if (task.status === 'allocated' || task.status === 'picking') {
           task.status = 'in_progress';
@@ -422,7 +400,6 @@ export class SimulationEngine {
       }
     }
 
-    // Consistency check on completed tasks: ensure no active robot is still bound to a completed task
     for (const task of this.taskMap.values()) {
       if (task.status === 'completed') {
         task.progress = 100;
@@ -439,19 +416,14 @@ export class SimulationEngine {
     }
   }
 
-  /**
-   * Main simulation tick running continuously.
-   */
   public tick(deltaSeconds: number): void {
     if (!this.isRunning && deltaSeconds > 0) return;
 
     const scaledDelta = deltaSeconds * this.speedMultiplier;
     this.simulationTime += scaledDelta;
 
-    // 1. Authoritative Task State Validation & Consistency Sync (Eliminates stale EN ROUTING)
     this.validateAndSyncTaskStates();
 
-    // 1.2 Automatic Task Generation ONLY IF EXPLICITLY ENABLED
     if (this.config.autoTaskGeneration) {
       this.lastTaskSpawnTime += scaledDelta;
       const spawnInterval = 60 / Math.max(1, this.config.taskGenerationRate);
@@ -461,42 +433,31 @@ export class SimulationEngine {
       }
     }
 
-    // 2. Task Allocation
     this.processTaskAllocation();
 
-    // 2.5 Pre-movement Collision Avoidance & Reservations Update
     const allRobots = this.robotMap.values();
     this.collisionAvoidance.updatePositions(allRobots);
     this.collisionAvoidance.updateReservations(allRobots, this.graph, this.simulationTime);
 
-    // 3. Robot Updates (movement, battery, picking, delivery, charging)
     this.updateRobots(scaledDelta);
 
-    // 4. Post-movement Collision Avoidance & Reservations Update
     this.collisionAvoidance.updatePositions(allRobots);
     this.collisionAvoidance.updateReservations(allRobots, this.graph, this.simulationTime);
 
-    // 5. Random Breakdown Check (if enabled in config)
     if (this.config.breakdownProbability > 0 && Math.random() < this.config.breakdownProbability * scaledDelta * 0.05) {
       this.triggerRandomBreakdown();
     }
 
-    // 6. Periodic Metrics Sampling (every 2 simulation seconds)
     this.lastMetricSampleTime += scaledDelta;
     if (this.lastMetricSampleTime >= 2.0) {
       this.updateMetrics();
       this.lastMetricSampleTime = 0;
     }
 
-    // 7. Scenario Condition Check
     if (this.activeScenario && this.scenarioStatus === 'in_progress') {
       this.checkScenarioConditions();
     }
   }
-
-  // ==========================================
-  // INVENTORY MANAGEMENT METHODS
-  // ==========================================
 
   public getProducts(): Product[] {
     return Array.from(this.products.values());
@@ -554,14 +515,6 @@ export class SimulationEngine {
     return this.products.delete(id);
   }
 
-  // ==========================================
-  // MANUAL TASK CREATION & CAPACITY SPLITTING
-  // ==========================================
-
-  /**
-   * Manually creates a task with strict validation and automatic capacity splitting.
-   * If quantity > 3, splits the order into subtasks of max 3 items.
-   */
   public createManualTask(params: {
     productId: string;
     requestedQuantity: number;
@@ -602,7 +555,6 @@ export class SimulationEngine {
       return { success: false, message: `Validation Error: Delivery Node "${params.deliveryNodeId}" does not exist.`, tasksCreated: [] };
     }
 
-    // Accessible aisle coordinate facing the shelf (CRITICAL FIX: Robot paths here, not into solid shelf!)
     const pickupFacingAisle = this.shelfIdToFacingAisle.get(params.shelfId) || { x: shelfNode.x, y: shelfNode.y + 1 };
 
     const priority = params.priority || 'normal';
@@ -641,7 +593,6 @@ export class SimulationEngine {
       this.taskMap.set(parentTask.id, parentTask);
     }
 
-    // Capacity splitting: Max 3 items per trip/robot!
     let remainingQuantity = params.requestedQuantity;
     let batchIndex = 1;
     const totalSubtasks = Math.ceil(params.requestedQuantity / 3);
@@ -667,8 +618,8 @@ export class SimulationEngine {
         deliveryNodeId: deliveryNode.id,
         pickupNodeId: shelfNode.id,
         destinationNodeId: `node_${deliveryNode.coord.x}_${deliveryNode.coord.y}`,
-        pickupCoord: pickupFacingAisle, // The accessible aisle where the robot stops!
-        shelfCoord: { x: shelfNode.x, y: shelfNode.y }, // Physical shelf rack position
+        pickupCoord: pickupFacingAisle,
+        shelfCoord: { x: shelfNode.x, y: shelfNode.y },
         destinationCoord: deliveryNode.coord,
         createdAt: this.simulationTime,
         deadline: params.deadlineSeconds ? this.simulationTime + params.deadlineSeconds : undefined,
@@ -716,10 +667,6 @@ export class SimulationEngine {
     };
   }
 
-  // ==========================================
-  // TASK ALLOCATION PROCESSOR
-  // ==========================================
-
   private processTaskAllocation(): void {
     const maxAttempts = Math.max(1, this.robotMap.size());
     let attempts = 0;
@@ -753,7 +700,6 @@ export class SimulationEngine {
       const candidate = TaskAllocator.allocate(taskToAllocate, allRobots, this.config.allocationStrategy);
 
       if (!candidate) {
-        // Re-enqueue task if no robot available right now
         if (taskToAllocate.priority === 'critical' || taskToAllocate.priority === 'high') {
           this.urgentTaskQueue.enqueue(taskToAllocate, taskToAllocate.priority === 'critical' ? 1 : 5);
         } else {
@@ -762,7 +708,6 @@ export class SimulationEngine {
         break;
       }
 
-      // Allocate task to candidate robot
       const robot = candidate.robot;
       taskToAllocate.status = 'allocated';
       taskToAllocate.progress = 10;
@@ -779,7 +724,6 @@ export class SimulationEngine {
       robot.blockedReason = undefined;
       robot.waitingReason = undefined;
 
-      // Free previous waiting bay if robot was waiting there
       if (robot.waitingNodeId) {
         const currentBay = this.waitingNodes.find(w => w.id === robot.waitingNodeId);
         if (currentBay && (currentBay.occupyingRobotId === robot.id || currentBay.occupiedBy === robot.id || currentBay.reservedBy === robot.id)) {
@@ -792,7 +736,6 @@ export class SimulationEngine {
         robot.waitingNodeId = undefined;
       }
 
-      // Free home dock occupation status when robot departs on a task
       if (robot.home_dock_id) {
         const homeDock = this.chargingStations.find(d => d.id === robot.home_dock_id);
         if (homeDock && homeDock.occupyingRobotId === robot.id) {
@@ -802,7 +745,6 @@ export class SimulationEngine {
         }
       }
 
-      // TrafficManager: Request structured queue slot for shelf resource
       const shelfQueue = this.trafficManager.requestQueueSlot(taskToAllocate.shelfId, robot.id, candidate.score);
       if (shelfQueue) {
         robot.queueSlotIndex = shelfQueue.slotIndex;
@@ -825,7 +767,6 @@ export class SimulationEngine {
           robot.blockedReason = `Cannot pathfind to Shelf ${taskToAllocate.shelfId}: Aisle is obstructed.`;
         }
       } else {
-        // Shelf is currently busy! Navigate to designated safe staging queue slot
         const stagingTarget = shelfQueue ? shelfQueue.coord : taskToAllocate.pickupCoord;
         robot.state = 'staged';
         robot.targetType = 'STAGING';
@@ -863,7 +804,6 @@ export class SimulationEngine {
     const isOppositeAllowed = allowOppositeLane ?? robot.isTemporaryOppositeLane ?? false;
     const t0 = performance.now();
 
-    // Helper to run pathfinding with a specific set of avoid coordinates
     const runRouteWithAvoid = (coordsToAvoid: GridCoord[]): PathfindingResult => {
       const temporarilyBlockedNodes: WarehouseNode[] = [];
       for (const c of coordsToAvoid) {
@@ -899,7 +839,6 @@ export class SimulationEngine {
       return res;
     };
 
-    // Pass 1: If no explicit avoidCoords, try avoiding stationary/staged other robots to choose clear corridors
     let result: PathfindingResult;
     const explicitAvoid = avoidCoords || [];
 
@@ -913,10 +852,8 @@ export class SimulationEngine {
         }
       }
 
-      // Try routing through open corridors first
       result = runRouteWithAvoid(stationaryOtherRobots);
 
-      // Pass 2: If avoiding stationary robots left no path, fall back to unrestricted pathfinding
       if (!result.path || result.path.length === 0) {
         result = runRouteWithAvoid([]);
       }
@@ -941,7 +878,6 @@ export class SimulationEngine {
       robot.lastLogicalNode = { ...robot.gridPosition };
       robot.lastMovementTick = this.simulationTime;
 
-      // Update robot lane tracking
       const nextNode = this.graph.getNodeByCoord(result.path[robot.currentRouteIndex].x, result.path[robot.currentRouteIndex].y);
       if (nextNode) {
         robot.currentLaneId = nextNode.laneId;
@@ -956,7 +892,6 @@ export class SimulationEngine {
   }
 
   public getAvailableWaitingBay(robot: Robot): WaitingNode | undefined {
-    // 1. Prefer robot's assigned waiting bay if free or already assigned to this robot
     if (robot.waitingNodeId) {
       const assigned = this.waitingNodes.find(w => w.id === robot.waitingNodeId);
       if (
@@ -968,7 +903,6 @@ export class SimulationEngine {
       }
     }
 
-    // 2. Otherwise find closest unoccupied and unreserved waiting bay (strictly prevent stacking)
     let nearest: WaitingNode | undefined = undefined;
     let minDistance = Infinity;
 
@@ -989,7 +923,6 @@ export class SimulationEngine {
   }
 
   public sendRobotToHomeDock(robot: Robot): boolean {
-    // CRITICAL GUARD: Never send a robot carrying cargo to dock unless battery is critically low (<10%)
     if (robot.isCarrying && robot.battery >= 10) {
       if (robot.currentTaskId) {
         const task = this.taskMap.get(robot.currentTaskId);
@@ -1013,11 +946,9 @@ export class SimulationEngine {
     robot.waitingNodeId = undefined;
     robot.navigationMode = 'CHARGING_TASK';
 
-    // If dock is already occupied by a different robot, queue this robot
     if (dock.isOccupied && dock.occupyingRobotId && dock.occupyingRobotId !== robot.id) {
       if (!dock.queue) dock.queue = [];
       if (!dock.queue.includes(robot.id)) dock.queue.push(robot.id);
-      // Stage in front of dock in dock approach lane (y=1)
       const stagingCoord = { x: dock.coord.x, y: 1 };
       const routeFound = this.calculateRobotRoute(robot, stagingCoord, 'CHARGING_TASK', dock.id);
       robot.state = 'returning_to_dock';
@@ -1025,7 +956,6 @@ export class SimulationEngine {
       return routeFound;
     }
 
-    // Reserve dock for returning robot
     dock.isOccupied = true;
     dock.occupyingRobotId = robot.id;
     dock.dockState = 'OCCUPIED';
@@ -1044,7 +974,6 @@ export class SimulationEngine {
       });
       return true;
     } else {
-      // Fallback: step toward Dock Approach Lane (y=1)
       const stagingCoord = { x: dock.coord.x, y: 1 };
       const stepOut = this.calculateRobotRoute(robot, stagingCoord, 'CHARGING_TASK', dock.id);
       if (stepOut) {
@@ -1071,13 +1000,8 @@ export class SimulationEngine {
     return this.sendRobotToHomeDock(robot);
   }
 
-  // ==========================================
-  // ADAPTIVE MULTI-ROBOT COORDINATION & BACKOFF
-  // ==========================================
-
   public determineRobotPriority(robotA: Robot, robotB: Robot): { higher: Robot; lower: Robot } {
     const getStateWeight = (r: Robot): number => {
-      // Robot carrying cargo or actively delivering has highest priority to clear aisles
       if (r.state === 'moving_to_delivery' || r.state === 'delivering' || r.state === 'aligning_delivery' || r.cargoCount > 0) {
         return 100;
       }
@@ -1096,7 +1020,7 @@ export class SimulationEngine {
       if (r.state === 'idle') {
         return 10;
       }
-      return 0; // backing_off, yielding, etc.
+      return 0;
     };
 
     const weightA = getStateWeight(robotA);
@@ -1106,7 +1030,6 @@ export class SimulationEngine {
       return weightA > weightB ? { higher: robotA, lower: robotB } : { higher: robotB, lower: robotA };
     }
 
-    // Tie-breaker 1: Task priority
     const getTaskPriorityWeight = (r: Robot): number => {
       if (!r.currentTaskId) return 0;
       const t = this.taskMap.get(r.currentTaskId);
@@ -1122,24 +1045,20 @@ export class SimulationEngine {
       return taskA > taskB ? { higher: robotA, lower: robotB } : { higher: robotB, lower: robotA };
     }
 
-    // Tie-breaker 2: Steps remaining to destination (closer robot has higher priority to finish sooner)
     const remainingA = robotA.currentRoute ? Math.max(0, robotA.currentRoute.length - robotA.currentRouteIndex) : 999;
     const remainingB = robotB.currentRoute ? Math.max(0, robotB.currentRoute.length - robotB.currentRouteIndex) : 999;
     if (remainingA !== remainingB) {
       return remainingA < remainingB ? { higher: robotA, lower: robotB } : { higher: robotB, lower: robotA };
     }
 
-    // Tie-breaker 3: Deterministic ID comparison (e.g. R-1 > R-2)
     return robotA.id < robotB.id ? { higher: robotA, lower: robotB } : { higher: robotB, lower: robotA };
   }
 
   public findClearanceNode(robot: Robot, conflictingRobot: Robot): GridCoord | undefined {
-    // 1. Check direct adjacent walkable neighbors of robot's current position
     const node = this.graph.getNodeByCoord(robot.gridPosition.x, robot.gridPosition.y);
     if (!node) return undefined;
     const neighbors = this.graph.getNeighbors(node.id, { ignoreBlocked: false, ignoreReserved: true });
 
-    // Set of coords in conflictingRobot's immediate path (avoid backing off into its forward route)
     const conflictPathSet = new Set<string>();
     conflictPathSet.add(Graph.coordKey(conflictingRobot.gridPosition.x, conflictingRobot.gridPosition.y));
     if (conflictingRobot.currentRoute) {
@@ -1156,7 +1075,6 @@ export class SimulationEngine {
     }
     const candidates: Candidate[] = [];
 
-    // Previous waypoint of this robot (stepping backward along route)
     let prevCoord: GridCoord | undefined = undefined;
     if (robot.currentRoute && robot.currentRouteIndex > 0) {
       prevCoord = robot.currentRoute[robot.currentRouteIndex - 1];
@@ -1165,22 +1083,17 @@ export class SimulationEngine {
     for (const { node: neighbor } of neighbors) {
       const nKey = Graph.coordKey(neighbor.x, neighbor.y);
 
-      // Must not be occupied
       if (this.collisionAvoidance.isOccupied(neighbor.x, neighbor.y)) {
         continue;
       }
-      // Must not be shelf or blocked
       if (neighbor.isBlocked || neighbor.type === 'shelf') {
         continue;
       }
 
-      // Must NOT be in conflicting robot's immediate path!
-      // A clearance node must be out of the conflicting robot's way!
       if (conflictPathSet.has(nKey)) {
         continue;
       }
 
-      // Must not be in restricted docking zone for normal robots
       if (
         robot.navigationMode !== 'CHARGING_TASK' &&
         (neighbor.y < 2 ||
@@ -1194,28 +1107,23 @@ export class SimulationEngine {
 
       let score = 0;
 
-      // Bonus if this is the step backward (reversing away)
       const isBackwardStep = prevCoord && neighbor.x === prevCoord.x && neighbor.y === prevCoord.y;
       if (isBackwardStep) {
         score += 20;
       }
 
-      // Bonus if main crossway (y = 2, y = 3, or south crossway)
       if (neighbor.y === 2 || neighbor.y === 3 || neighbor.y >= this.config.length - 3) {
         score += 15;
       }
 
-      // Bonus if cross-aisle (x = 0, x = width - 1, x = Math.floor(width / 2))
       if (neighbor.x === 0 || neighbor.x === this.config.width - 1 || neighbor.x === Math.floor(this.config.width / 2)) {
         score += 12;
       }
 
-      // Bonus if waiting bay
       if (neighbor.type === 'waiting') {
         score += 10;
       }
 
-      // Distance away from conflicting robot
       const dist = Math.abs(neighbor.x - conflictingRobot.gridPosition.x) + Math.abs(neighbor.y - conflictingRobot.gridPosition.y);
       score += dist * 4;
 
@@ -1227,7 +1135,6 @@ export class SimulationEngine {
       return candidates[0].coord;
     }
 
-    // 2. Fallback: If no immediate adjacent neighbor is free and clear, use BFS backward up to 15 steps to find a crossway or siding!
     const visited = new Set<string>();
     visited.add(Graph.coordKey(robot.gridPosition.x, robot.gridPosition.y));
     const queue: { coord: GridCoord; dist: number }[] = [{ coord: { ...robot.gridPosition }, dist: 0 }];
@@ -1242,16 +1149,13 @@ export class SimulationEngine {
 
       for (const { node: n } of currNeighbors) {
         const key = Graph.coordKey(n.x, n.y);
-        // Do not traverse through shelves, blocked nodes, or OCCUPIED nodes! (Cannot drive through other robots)
         if (visited.has(key) || n.isBlocked || n.type === 'shelf' || this.collisionAvoidance.isOccupied(n.x, n.y)) continue;
         visited.add(key);
 
-        // Found a free, unoccupied node that is NOT in conflicting robot's path!
         if (!conflictPathSet.has(key)) {
           return { x: n.x, y: n.y };
         }
 
-        // Even if in conflictPathSet (like reversing backward along the contested aisle), queue it to keep searching for a crossway/siding!
         queue.push({ coord: { x: n.x, y: n.y }, dist: curr.dist + 1 });
       }
     }
@@ -1265,7 +1169,6 @@ export class SimulationEngine {
       return false;
     }
 
-    // Save previous mission state so robot can resume once conflicting robot passes
     const finalGoal = robot.currentRoute && robot.currentRoute.length > 0
       ? robot.currentRoute[robot.currentRoute.length - 1]
       : (robot.previousMissionState?.destinationCoord || robot.gridPosition);
@@ -1280,10 +1183,8 @@ export class SimulationEngine {
       };
     }
 
-    // Release reservation on contested node immediately so conflicting robot can advance!
     this.collisionAvoidance.clearRobotReservation(robot.id, this.graph);
 
-    // Plan route to clearance node strictly avoiding the conflicting robot
     const backoffRouteFound = this.calculateRobotRoute(
       robot,
       clearanceCoord,
@@ -1311,14 +1212,9 @@ export class SimulationEngine {
     return backoffRouteFound;
   }
 
-  // ==========================================
-  // ROBOT UPDATES & STATE MACHINE
-  // ==========================================
-
   private updateRobots(deltaSeconds: number): void {
     const allRobots = Array.from(this.robotMap.values());
 
-    // 0. Periodic WFG Deadlock Detection across waiting/blocked robots
     const hasWaiting = allRobots.some(r => r.waitTime >= 0.5 || r.state === 'waiting_for_path');
     if (hasWaiting) {
       const deadlock = this.deadlockDetector.detectDeadlock(allRobots, this.collisionAvoidance, this.graph);
@@ -1331,18 +1227,15 @@ export class SimulationEngine {
     }
 
     for (const robot of allRobots) {
-      // 0. Manual / Debug pause
       if (robot.isPaused) {
         continue;
       }
 
-      // 1. Broken / maintenance state
       if (robot.state === 'breakdown' || robot.state === 'maintenance') {
         robot.blockedReason = 'Robot motor breakdown. Maintenance required.';
         continue;
       }
 
-      // 1.2 Staged state: waiting for shelf access or delivery node access
       if (robot.state === 'staged' && robot.currentTaskId) {
         const task = this.taskMap.get(robot.currentTaskId);
         if (task) {
@@ -1395,7 +1288,6 @@ export class SimulationEngine {
         }
       }
 
-      // 1.5 Retry pathfinding for robots waiting for path
       if (robot.state === 'waiting_for_path') {
         robot.waitTime += deltaSeconds;
         if (robot.waitTime >= 1.0) {
@@ -1417,7 +1309,6 @@ export class SimulationEngine {
         continue;
       }
 
-      // 2. Charging state in integrated home dock
       if (robot.state === 'charging') {
         const dock = this.chargingStations.find(s => s.id === robot.home_dock_id || s.id === robot.chargingStationId);
         if (dock) {
@@ -1427,7 +1318,7 @@ export class SimulationEngine {
           const fullyCharged = BatteryManager.chargeRobot(robot, dock, deltaSeconds);
           if (fullyCharged || robot.battery >= 100) {
             robot.battery = 100;
-            robot.state = 'idle'; // stays in dock, ready for task assignment!
+            robot.state = 'idle';
             robot.navigationMode = 'NORMAL_TASK';
             dock.dockState = 'AVAILABLE';
             robot.blockedReason = undefined;
@@ -1442,14 +1333,12 @@ export class SimulationEngine {
               robotId: robot.id,
             });
 
-            // Process queued tasks now that a robot is fully charged and ready
             this.processTaskAllocation();
           }
         }
         continue;
       }
 
-      // 3. Critical low-battery check (<15%): immediate dispatch to charging station or home dock
       if (
         robot.battery < BatteryManager.CRITICAL_BATTERY_THRESHOLD &&
         robot.state !== 'returning_to_dock' &&
@@ -1498,7 +1387,6 @@ export class SimulationEngine {
         continue;
       }
 
-      // 3.4 Target Validation Guard: Robots carrying cargo must NEVER return to dock or drop to idle
       if (robot.isCarrying && robot.battery >= 10) {
         if (
           robot.state === 'idle' ||
@@ -1518,7 +1406,6 @@ export class SimulationEngine {
         }
       }
 
-      // 3.5 Return to Home Dock if idle and not currently at Home Dock
       if (robot.state === 'idle' && !robot.currentTaskId && robot.currentRoute.length === 0) {
         const homeDock = this.chargingStations.find(d => d.id === robot.home_dock_id);
         const isAtHomeDock = homeDock && robot.gridPosition.x === homeDock.coord.x && robot.gridPosition.y === homeDock.coord.y;
@@ -1528,7 +1415,6 @@ export class SimulationEngine {
         }
       }
 
-      // Update robot dynamic movement mode & targetNode tracking
       const currPosNode = this.graph.getNodeByCoord(robot.gridPosition.x, robot.gridPosition.y);
       if (robot.state === 'yielding' || robot.state === 'backing_off') {
         robot.movementMode = 'YIELDING';
@@ -1561,7 +1447,6 @@ export class SimulationEngine {
         robot.targetType = 'WAITING';
       }
 
-      // 3.9 Progress Watchdog & Starvation-Free Priority Aging
       if (
         robot.state === 'moving_to_pickup' ||
         robot.state === 'moving_to_delivery' ||
@@ -1585,7 +1470,6 @@ export class SimulationEngine {
           this.simulationTime - (robot.lastMovementTick ?? this.simulationTime)
         );
 
-        // Stuck detection threshold: > 3.0s without progress -> assign typed waitingReason
         if (timeWithoutMovement >= 3.0 && !robot.waitingReason) {
           if (robot.targetShelfId && !robot.isCarrying) {
             robot.waitingReason = 'WAITING_FOR_SHELF';
@@ -1596,13 +1480,11 @@ export class SimulationEngine {
           }
         }
 
-        // Priority aging: update effectivePriority
         if (robot.currentTaskId) {
           const t = this.taskMap.get(robot.currentTaskId);
           this.deadlockDetector.calculateEffectivePriority(robot, t?.priority);
         }
 
-        // Watchdog threshold 1: > 3.5s without progress -> retry pathfinding
         if (timeWithoutMovement > 3.5 && timeWithoutMovement - deltaSeconds <= 3.5) {
           if (robot.currentTaskId) {
             const t = this.taskMap.get(robot.currentTaskId);
@@ -1615,7 +1497,6 @@ export class SimulationEngine {
           }
         }
 
-        // Watchdog threshold 2: > 8.0s without progress -> active unsticking & dynamic task reassignment
         if (timeWithoutMovement > 8.0) {
           if (!robot.isCarrying && robot.currentTaskId) {
             const task = this.taskMap.get(robot.currentTaskId);
@@ -1629,7 +1510,7 @@ export class SimulationEngine {
                 this.trafficManager.releaseQueueSlot(task.deliveryNodeId, robot.id);
               }
               task.status = 'queued';
-              task.priority = 'critical'; // elevated to prevent starvation
+              task.priority = 'critical';
               task.assignedRobotId = undefined;
               task.reassignmentCount = (task.reassignmentCount || 0) + 1;
               this.urgentTaskQueue.enqueue(task, 1);
@@ -1659,10 +1540,8 @@ export class SimulationEngine {
               continue;
             }
           } else if (robot.isCarrying && robot.currentTaskId) {
-            // Robot is carrying cargo: cannot drop cargo; perform active unsticking
             const task = this.taskMap.get(robot.currentTaskId);
             if (task) {
-              // 1. Try rerouting strictly avoiding all other robot positions
               const otherRobotCoords = Array.from(this.robotMap.values())
                 .filter(r => r.id !== robot.id)
                 .map(r => ({ x: r.gridPosition.x, y: r.gridPosition.y }));
@@ -1676,7 +1555,6 @@ export class SimulationEngine {
               );
 
               if (!rerouted) {
-                // 2. Identify blocker along next route waypoints
                 let blocker: Robot | undefined;
                 const nextStep = robot.currentRoute && robot.currentRoute.length > robot.currentRouteIndex
                   ? robot.currentRoute[robot.currentRouteIndex]
@@ -1743,12 +1621,11 @@ export class SimulationEngine {
         robot.lastProgressPosition = { ...robot.gridPosition };
       }
 
-      // 4. Pickup Animation Sequence (Aligning -> Picking Up / Loading)
       if (robot.state === 'aligning_pickup') {
         robot.animationTimer -= deltaSeconds;
         if (robot.animationTimer <= 0) {
           robot.state = 'picking_up';
-          robot.animationTimer = 0.35; // Snappy 0.35s pickup animation
+          robot.animationTimer = 0.35;
           this.addEvent({
             id: `pickup_start_${robot.id}`,
             timestamp: Date.now(),
@@ -1761,7 +1638,6 @@ export class SimulationEngine {
         continue;
       }
 
-      // Recovery Cargo Transfer Sequence
       if (robot.isRecoveryRobot && robot.recoveringFromRobotId && robot.state === 'loading') {
         robot.animationTimer -= deltaSeconds;
         robot.blockedReason = 'TRANSFERRING CARGO';
@@ -1807,18 +1683,16 @@ export class SimulationEngine {
       if (robot.state === 'picking_up' || (robot.state === 'loading' && !robot.isRecoveryRobot)) {
         robot.animationTimer -= deltaSeconds;
         if (robot.animationTimer <= 0) {
-          // Complete pickup!
           this.completePickupSequence(robot);
         }
         continue;
       }
 
-      // 5. Delivery Animation Sequence (Aligning -> Delivering / Unloading)
       if (robot.state === 'aligning_delivery') {
         robot.animationTimer -= deltaSeconds;
         if (robot.animationTimer <= 0) {
           robot.state = 'delivering';
-          robot.animationTimer = 0.35; // Snappy 0.35s delivery animation
+          robot.animationTimer = 0.35;
           this.addEvent({
             id: `delivery_start_${robot.id}`,
             timestamp: Date.now(),
@@ -1834,13 +1708,11 @@ export class SimulationEngine {
       if (robot.state === 'delivering' || robot.state === 'unloading') {
         robot.animationTimer -= deltaSeconds;
         if (robot.animationTimer <= 0) {
-          // Complete delivery!
           this.completeDeliverySequence(robot);
         }
         continue;
       }
 
-      // 5.5 Yielding State: waiting at clearance node for higher-priority robot to pass
       if (robot.state === 'yielding') {
         if (robot.yieldTimer !== undefined) {
           robot.yieldTimer -= deltaSeconds;
@@ -1850,14 +1722,12 @@ export class SimulationEngine {
         if (robot.yieldTargetRobotId) {
           const targetRobot = this.robotMap.get(robot.yieldTargetRobotId);
           if (targetRobot) {
-            // Check if target robot's next step is our current position (we are blocking it!)
             if (
               targetRobot.currentRoute &&
               targetRobot.currentRouteIndex < targetRobot.currentRoute.length
             ) {
               const nextStep = targetRobot.currentRoute[targetRobot.currentRouteIndex];
               if (nextStep && nextStep.x === robot.gridPosition.x && nextStep.y === robot.gridPosition.y) {
-                // Yielding robot is blocking target robot! Back off further
                 this.handleRobotBackoff(robot, targetRobot);
                 continue;
               }
@@ -1874,9 +1744,7 @@ export class SimulationEngine {
         const yieldExpired = robot.yieldTimer !== undefined && robot.yieldTimer <= 0;
         const yieldOverdue = robot.yieldTimer !== undefined && robot.yieldTimer <= -2.0;
 
-        // Swift Yielding: As soon as the other robot has cleared the conflict zone (!targetStillNearby), resume immediately
         if (!targetStillNearby || yieldExpired || yieldOverdue) {
-          // Finished yielding! Resume previous mission
           if (robot.previousMissionState) {
             const prev = robot.previousMissionState;
             robot.state = prev.state;
@@ -1913,21 +1781,16 @@ export class SimulationEngine {
         continue;
       }
 
-      // 6. Movement along currentRoute
       if (robot.currentRoute.length > 0 && robot.currentRouteIndex < robot.currentRoute.length) {
         const targetCoord = robot.currentRoute[robot.currentRouteIndex];
         const targetWorld = { x: targetCoord.x, y: 0.25, z: targetCoord.y };
 
-        // Controlled Intersection Management:
-        // A robot must NEVER enter an intersection unless the junction is clear
-        // AND the EXIT node past the intersection is also clear (prevents stopping in junction!).
         const targetNode = this.graph.getNodeByCoord(targetCoord.x, targetCoord.y);
         const currentNode = this.graph.getNodeByCoord(robot.gridPosition.x, robot.gridPosition.y);
         if (targetNode?.isIntersection && !currentNode?.isIntersection) {
           const intId = this.trafficManager.getIntersectionId(targetCoord.x, targetCoord.y);
           const zone = intId ? this.trafficManager.getIntersectionZone(intId) : undefined;
 
-          // 1. If any robot is ALREADY inside this intersection zone, hold at entrance threshold until it clears
           const isOccupiedInside = zone && zone.crossingRobotIds.some(cid => {
             const cr = this.robotMap.get(cid);
             return cr && cr.id !== robot.id && this.graph.getNodeByCoord(cr.gridPosition.x, cr.gridPosition.y)?.isIntersection;
@@ -1940,7 +1803,6 @@ export class SimulationEngine {
             continue;
           }
 
-          // 2. Identify all contenders approaching or holding at entrances to this same intersection
           const contenders: Robot[] = [robot];
           if (intId) {
             for (const other of allRobots) {
@@ -1954,7 +1816,6 @@ export class SimulationEngine {
             }
           }
 
-          // 3. Priority arbitration: If multiple contenders, highest priority robot takes the first step immediately!
           if (contenders.length > 1) {
             let highestPriority = contenders[0];
             for (let ci = 1; ci < contenders.length; ci++) {
@@ -1963,12 +1824,10 @@ export class SimulationEngine {
             }
 
             if (highestPriority.id !== robot.id) {
-              // Lower priority robot: holds at entrance threshold without backing off
               robot.waitTime += deltaSeconds;
               robot.waitingReason = 'WAITING_FOR_INTERSECTION';
               robot.blockedReason = `Holding before intersection: Right-of-way granted to ${highestPriority.name}.`;
 
-              // If holding >= 1.0s, evaluate alternative route around intersection to prevent freeze
               if (robot.waitTime >= 1.0 && robot.currentRoute && robot.currentRoute.length > 0) {
                 const finalGoal = robot.currentRoute[robot.currentRoute.length - 1];
                 const blockedTargetNode = this.graph.getNodeByCoord(targetCoord.x, targetCoord.y);
@@ -2005,7 +1864,6 @@ export class SimulationEngine {
               continue;
             }
 
-            // Winner takes the first step immediately! Clear any stale reservation from holding robots
             this.collisionAvoidance.clearReservationAt(targetCoord.x, targetCoord.y, this.graph);
           }
 
@@ -2032,7 +1890,6 @@ export class SimulationEngine {
             robot.waitingReason = 'WAITING_FOR_INTERSECTION';
             robot.blockedReason = intPermit.reason || 'Holding before intersection for clearance.';
 
-            // If waiting before intersection >= 1.0s, evaluate alternative route around blockage
             if (robot.waitTime >= 1.0 && robot.currentRoute && robot.currentRoute.length > 0) {
               const finalGoal = robot.currentRoute[robot.currentRoute.length - 1];
               const blockedTargetNode = this.graph.getNodeByCoord(targetCoord.x, targetCoord.y);
@@ -2070,7 +1927,6 @@ export class SimulationEngine {
           }
         }
 
-        // Conflict check on next step
         const conflict = this.collisionAvoidance.getConflictInfo(targetCoord.x, targetCoord.y, robot.id);
         const isYieldTargetReservation = robot.state === 'backing_off' &&
           conflict.isReservation &&
@@ -2082,9 +1938,7 @@ export class SimulationEngine {
           const conflictingRobot = (conflict.conflictingRobotId ? this.robotMap.get(conflict.conflictingRobotId) : undefined) ||
             (occId ? this.robotMap.get(occId) : undefined);
 
-          // If the conflicting robot is IDLE, WAITING, or STAGED and blocking active traffic, tell it to clear!
           if (conflictingRobot) {
-            // Front-of-queue / shelf owner must NEVER wait for queued robots behind it
             const isConflictingBehind =
               (conflictingRobot.queueSlotIndex !== undefined && (robot.queueSlotIndex === undefined || robot.queueSlotIndex === 0)) ||
               (conflictingRobot.queueSlotIndex !== undefined && robot.queueSlotIndex !== undefined && conflictingRobot.queueSlotIndex > robot.queueSlotIndex);
@@ -2103,7 +1957,6 @@ export class SimulationEngine {
                 this.sendRobotToWaiting(conflictingRobot);
               }
             } else if (conflictingRobot.state === 'staged') {
-              // Staged robot is blocking active traffic: relocate it to an alternate staging cell
               const task = conflictingRobot.currentTaskId ? this.taskMap.get(conflictingRobot.currentTaskId) : undefined;
               if (task) {
                 const occupiedCoords = new Set(Array.from(this.robotMap.values()).map(r => Graph.coordKey(r.gridPosition.x, r.gridPosition.y)));
@@ -2120,7 +1973,6 @@ export class SimulationEngine {
             }
           }
 
-          // Check for true head-to-head deadlock along corridor axis
           const isDeadlock = conflictingRobot ? this.collisionAvoidance.checkHeadToHead(robot, conflictingRobot) : false;
           const priority = conflictingRobot ? this.determineRobotPriority(robot, conflictingRobot) : undefined;
           const isIntersectionArea = Boolean(
@@ -2129,7 +1981,6 @@ export class SimulationEngine {
             (conflictingRobot && this.graph.getNodeByCoord(conflictingRobot.gridPosition.x, conflictingRobot.gridPosition.y)?.isIntersection)
           );
 
-          // 1. True head-to-head deadlock: lower priority robot backs off immediately into a siding (NEVER at intersections)
           if (isDeadlock && conflictingRobot && priority && !isIntersectionArea) {
             const lowerPriorityRobot = priority.lower;
             const higherPriorityRobot = priority.higher;
@@ -2141,12 +1992,10 @@ export class SimulationEngine {
             }
           }
 
-          // 2. Format explicit debug reason (NEVER 'UNKNOWN')
           const conflictName = conflictingRobot ? conflictingRobot.name : 'OBSTACLE';
           robot.blockingEntity = conflictName;
           robot.waitingSince = robot.waitingSince || this.simulationTime;
 
-          // 1-second obstacle movement check:
           robot.obstacleCheckTimer = (robot.obstacleCheckTimer || 0) + deltaSeconds;
           if (robot.obstacleCheckTimer >= 1.0) {
             robot.obstacleCheckTimer = 0;
@@ -2154,7 +2003,6 @@ export class SimulationEngine {
             const conflictNow = this.collisionAvoidance.getConflictInfo(targetCoord.x, targetCoord.y, robot.id);
             const isNowClear = targetNode && !targetNode.isBlocked && !conflictNow.isConflict;
             if (isNowClear) {
-              // Obstacle has moved! Path is immediately clear!
               robot.waitTime = 0;
               robot.blockedReason = undefined;
               robot.waitingReason = undefined;
@@ -2162,12 +2010,10 @@ export class SimulationEngine {
           }
 
           if (robot.waitTime <= 1.0) {
-            // 0-1s: Transient wait stage
             const isAisleObstacle = this.graph.getNodeByCoord(targetCoord.x, targetCoord.y)?.isBlocked;
             const desc = conflict.isOccupant ? `OCCUPIED BY ${conflictName}` : (isAisleObstacle ? 'OBSTACLE ON AISLE' : `RESERVED BY ${conflictName}`);
             robot.blockedReason = `WAITING FOR NODE (${targetCoord.x}, ${targetCoord.y}) — ${desc} (wait: ${robot.waitTime.toFixed(1)}s)`;
           } else {
-            // >= 1s: Route remains blocked. Re-evaluate obstacle and calculate swift detour
             const timeSinceLastReplan = this.simulationTime - (robot.lastReplanTime || 0);
             const isPermanentBlock = conflictingRobot?.state === 'breakdown' || conflictingRobot?.state === 'maintenance';
             const canReplan = isPermanentBlock || timeSinceLastReplan >= 1.0;
@@ -2177,7 +2023,6 @@ export class SimulationEngine {
               continue;
             }
 
-            // Section 16: Temporary Opposite-Lane Corridor Overtake
             const overtakeEval = this.trafficManager.evaluateOppositeLaneOvertake(
               robot,
               targetCoord,
@@ -2197,7 +2042,7 @@ export class SimulationEngine {
                 undefined,
                 undefined,
                 [{ x: targetCoord.x, y: targetCoord.y }],
-                true // allowOppositeLane
+                true
               );
               if (rerouted) {
                 robot.lastReplanTime = this.simulationTime;
@@ -2219,7 +2064,6 @@ export class SimulationEngine {
               }
             }
 
-            // Wait vs Detour Cost Evaluation
             const remainingSteps = robot.currentRoute.length - robot.currentRouteIndex;
             const finalGoal = robot.currentRoute[robot.currentRoute.length - 1];
             const blockedNode = this.graph.getNodeByCoord(targetCoord.x, targetCoord.y);
@@ -2242,12 +2086,10 @@ export class SimulationEngine {
             if (altResult.path && altResult.path.length > 0) {
               const detourAdded = altResult.path.length - remainingSteps;
               if (detourAdded > 4 && robot.waitTime < 1.0 && !isPermanentBlock) {
-                // Detour too costly, wait briefly for clearance check
                 robot.blockedReason = `WAITING FOR NODE (${targetCoord.x}, ${targetCoord.y}) — DETOUR EXPENSIVE (+${detourAdded} STEPS), WAITING (wait: ${robot.waitTime.toFixed(1)}s)`;
                 continue;
               }
 
-              // Apply alternate route swiftly!
               robot.currentRoute = altResult.path;
               robot.currentRouteIndex = altResult.path.length > 1 ? 1 : 0;
               robot.lastReplanTime = this.simulationTime;
@@ -2267,7 +2109,6 @@ export class SimulationEngine {
               });
               continue;
             } else if (conflictingRobot && priority && !isIntersectionArea) {
-              // No alternate route available: ensure lower priority robot yields/backs off (NEVER at intersections)!
               if (priority.lower.id === robot.id && robot.state !== 'backing_off') {
                 const backed = this.handleRobotBackoff(robot, conflictingRobot);
                 if (backed) continue;
@@ -2280,19 +2121,16 @@ export class SimulationEngine {
           continue;
         }
 
-        // Smooth physical movement towards target waypoint
         const dx = targetWorld.x - robot.position.x;
         const dz = targetWorld.z - robot.position.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
         const moveStep = robot.maxSpeed * deltaSeconds;
 
-        // Heading rotation
         if (dist > 0.01) {
           robot.heading = Math.atan2(dx, dz);
         }
 
         if (dist <= moveStep) {
-          // Reached waypoint
           const prevCoord = { ...robot.gridPosition };
           robot.position.x = targetWorld.x;
           robot.position.z = targetWorld.z;
@@ -2305,7 +2143,6 @@ export class SimulationEngine {
           this.metrics.totalDistanceTraveled += dist;
           BatteryManager.consumeBattery(robot, dist, robot.isCarrying, deltaSeconds);
 
-          // Update current lane and assigned direction
           const currNode = this.graph.getNodeByCoord(targetCoord.x, targetCoord.y);
           if (currNode) {
             robot.currentLaneId = currNode.laneId;
@@ -2314,7 +2151,6 @@ export class SimulationEngine {
             }
           }
 
-          // Section 16: Conclude opposite lane overtake once robot returns to safe merge point or normal lane
           if (robot.isTemporaryOppositeLane) {
             const hasReturned =
               (robot.oppositeLaneReturnCoord &&
@@ -2328,16 +2164,13 @@ export class SimulationEngine {
             }
           }
 
-          // Controlled Intersection Management: release reservation if exiting intersection zone
           const prevNode = this.graph.getNodeByCoord(prevCoord.x, prevCoord.y);
           if (prevNode?.isIntersection && !currNode?.isIntersection) {
             this.trafficManager.releaseIntersection(robot.id);
           }
 
-          // Immediately release the reservation of the node we just vacated!
           this.collisionAvoidance.releaseNode(prevCoord.x, prevCoord.y, robot.id, this.graph);
 
-          // If robot was carrying cargo and is leaving the pickup shelf interaction zone:
           if (robot.vacatingShelfId) {
             const vShelf = robot.vacatingShelfId;
             robot.vacatingShelfId = undefined;
@@ -2362,12 +2195,10 @@ export class SimulationEngine {
 
         robot.blockedReason = undefined;
 
-        // Check if finished entire route
         if (robot.currentRouteIndex >= robot.currentRoute.length) {
           this.handleRobotReachedWaypointDestination(robot);
         }
       } else {
-        // Idle battery drain
         BatteryManager.consumeBattery(robot, 0, false, deltaSeconds);
       }
     }
@@ -2382,7 +2213,6 @@ export class SimulationEngine {
     }
 
     if (robot.state === 'backing_off' || robot.state === 'recovering_deadlock') {
-      // Reached clearance siding! Transition to yielding
       robot.state = 'yielding';
       robot.yieldTimer = 0.8;
       robot.currentRoute = [];
@@ -2393,7 +2223,6 @@ export class SimulationEngine {
     }
 
     if (robot.state === 'staged') {
-      // Reached designated staging bay! Hold here until shelf is granted
       robot.currentRoute = [];
       robot.currentRouteIndex = 0;
       robot.waitingReason = 'WAITING_FOR_SHELF';
@@ -2402,7 +2231,6 @@ export class SimulationEngine {
     }
 
     if (robot.targetType === 'DOCK' || robot.state === 'going_to_charge' || robot.state === 'returning_to_dock') {
-      // Reached assigned Home Dock!
       const dock = this.chargingStations.find(d => d.id === robot.home_dock_id || d.assignedRobotId === robot.id);
       robot.position.x = robot.gridPosition.x;
       robot.position.z = robot.gridPosition.y;
@@ -2436,7 +2264,6 @@ export class SimulationEngine {
 
     if (!robot.currentTaskId) {
       if (robot.state === 'returning') {
-        // Successfully arrived at waiting bay!
         robot.state = 'idle';
         robot.navigationMode = 'NORMAL_TASK';
         robot.currentRoute = [];
@@ -2467,9 +2294,8 @@ export class SimulationEngine {
     const task = this.taskMap.get(robot.currentTaskId);
     if (!task) return;
 
-    // Recovery robot arrived at adjacent node to broken robot
     if (robot.isRecoveryRobot && robot.recoveringFromRobotId) {
-      robot.state = 'loading'; // transfer state
+      robot.state = 'loading';
       robot.animationTimer = 1.5;
       robot.blockedReason = 'TRANSFERRING CARGO';
       robot.currentRoute = [];
@@ -2477,28 +2303,24 @@ export class SimulationEngine {
       return;
     }
 
-    // Authoritative check: Carrying cargo -> arrived at delivery; Not carrying -> arrived at pickup
     if (robot.isCarrying || robot.state === 'moving_to_delivery' || robot.targetType === 'DELIVERY') {
       const isAtDelivery = (robot.gridPosition.x === task.destinationCoord.x && robot.gridPosition.y === task.destinationCoord.y) ||
                            (Math.abs(robot.position.x - task.destinationCoord.x) <= 0.25 && Math.abs(robot.position.z - task.destinationCoord.y) <= 0.25);
       if (isAtDelivery) {
-        // Snap to destination node coordinates
         robot.gridPosition = { x: task.destinationCoord.x, y: task.destinationCoord.y };
         robot.position.x = task.destinationCoord.x;
         robot.position.z = task.destinationCoord.y;
-        // Arrived at delivery node! Enter delivery alignment sequence
         task.status = 'delivering';
         task.phase = 'AT_DELIVERY';
         task.progress = 85;
         robot.state = 'aligning_delivery';
         robot.targetType = 'DELIVERY';
-        robot.animationTimer = 0.35; // Snappy 0.35s alignment
+        robot.animationTimer = 0.35;
         robot.currentRoute = [];
         robot.currentRouteIndex = 0;
         robot.waitingReason = undefined;
         robot.blockedReason = undefined;
       } else {
-        // Arrived at delivery staging slot! Hold position until promoted
         robot.state = 'staged';
         robot.targetType = 'STAGING';
         robot.stagedAtCoord = { ...robot.gridPosition };
@@ -2517,11 +2339,9 @@ export class SimulationEngine {
       const isAtPickup = (robot.gridPosition.x === task.pickupCoord.x && robot.gridPosition.y === task.pickupCoord.y) ||
                          (Math.abs(robot.position.x - task.pickupCoord.x) <= 0.25 && Math.abs(robot.position.z - task.pickupCoord.y) <= 0.25);
       if (isAtPickup) {
-        // Snap to pickup node coordinates
         robot.gridPosition = { x: task.pickupCoord.x, y: task.pickupCoord.y };
         robot.position.x = task.pickupCoord.x;
         robot.position.z = task.pickupCoord.y;
-        // Arrived at pickup facing aisle! Enter alignment sequence
         if (task.shelfId) {
           this.shelfAccessManager.occupyShelf(task.shelfId, robot.id);
           this.addEvent({
@@ -2539,19 +2359,17 @@ export class SimulationEngine {
         task.progress = 30;
         robot.state = 'aligning_pickup';
         robot.targetType = 'PICKUP';
-        robot.animationTimer = 0.35; // Snappy 0.35s alignment
+        robot.animationTimer = 0.35;
         robot.currentRoute = [];
         robot.currentRouteIndex = 0;
         robot.waitingReason = undefined;
         robot.blockedReason = undefined;
 
-        // Face toward the physical shelf
         const shelfNode = this.shelfNodes.find(s => s.shelfId === task.shelfId);
         if (shelfNode) {
           robot.heading = Math.atan2(shelfNode.x - robot.position.x, shelfNode.y - robot.position.z);
         }
       } else {
-        // Arrived at shelf staging slot! Hold position until promoted
         robot.state = 'staged';
         robot.targetType = 'STAGING';
         robot.stagedShelfId = task.shelfId;
@@ -2580,7 +2398,6 @@ export class SimulationEngine {
     const product = task.productId ? this.products.get(task.productId) : undefined;
     const pickupQty = Math.min(robot.maxCapacity, task.requestedQuantity);
 
-    // Update product stock
     if (product) {
       product.quantity = Math.max(0, product.quantity - pickupQty);
       product.status = product.quantity > 0 ? (product.quantity < 5 ? 'low_stock' : 'in_stock') : 'out_of_stock';
@@ -2590,7 +2407,6 @@ export class SimulationEngine {
       }
     }
 
-    // Load cargo into robot
     robot.isCarrying = true;
     robot.cargoCount = pickupQty;
     robot.cargoItems = [
@@ -2616,14 +2432,10 @@ export class SimulationEngine {
 
     soundEffects.playPickup();
 
-    // Do NOT release or advance shelf queue while robot is physically still at the shelf!
-    // Instead, note that this robot is vacating shelfId so that as soon as it takes a step
-    // away from the shelf interaction node, the queue advances cleanly without collision.
     robot.vacatingShelfId = task.shelfId;
     robot.targetType = 'DELIVERY';
     task.phase = 'EN_ROUTE_TO_DELIVERY';
 
-    // TrafficManager: Request delivery node queue slot
     const delQueue = this.trafficManager.requestQueueSlot(task.deliveryNodeId, robot.id);
     if (delQueue) {
       robot.queueSlotIndex = delQueue.slotIndex;
@@ -2657,7 +2469,6 @@ export class SimulationEngine {
       return;
     }
 
-    // Update delivery node record
     const deliveryNode = this.deliveryNodes.find(d => d.id === task.deliveryNodeId);
     if (deliveryNode) {
       deliveryNode.completedDeliveries += robot.cargoCount;
@@ -2680,7 +2491,6 @@ export class SimulationEngine {
 
     soundEffects.playDelivery();
 
-    // Record completed path trail for historical visualization (last 3-5 tasks)
     if (robot.currentRoute && robot.currentRoute.length > 0) {
       if (!robot.completedPaths) robot.completedPaths = [];
       robot.completedPaths.push({
@@ -2693,7 +2503,6 @@ export class SimulationEngine {
       }
     }
 
-    // Reset robot cargo and advance delivery queue
     if (task.deliveryNodeId) {
       this.advanceDeliveryQueue(task.deliveryNodeId, robot.id);
     }
@@ -2723,7 +2532,6 @@ export class SimulationEngine {
     task.progress = 100;
     task.completedAt = this.simulationTime;
 
-    // Update parent task if this was a subtask
     if (task.parentTaskId) {
       const parentTask = this.taskMap.get(task.parentTaskId);
       if (parentTask) {
@@ -2749,15 +2557,12 @@ export class SimulationEngine {
       }
     }
 
-    // Release shelf reservation if still held
     if (task.shelfId) {
       this.shelfAccessManager.releaseShelf(task.shelfId, robot.id);
     }
 
-    // Check if a pending task can immediately be allocated to this robot
     this.processTaskAllocation();
 
-    // If no new task was allocated, immediately send the robot back to its Home Dock:
     if (!robot.currentTaskId) {
       this.sendRobotToHomeDock(robot);
     }
@@ -2868,7 +2673,6 @@ export class SimulationEngine {
 
     if (!candidate) return false;
 
-    // Find adjacent walkable cell to brokenRobot.gridPosition
     const deltas = [{ dx: 1, dy: 0 }, { dx: -1, dy: 0 }, { dx: 0, dy: 1 }, { dx: 0, dy: -1 }];
     let targetAdjacent: GridCoord | undefined = undefined;
 
@@ -2909,7 +2713,6 @@ export class SimulationEngine {
     task.phase = 'EN_ROUTE_TO_RECOVERY';
     task.status = 'in_progress';
 
-    // Free candidate from dock/waiting bay
     if (candidate.waitingNodeId) {
       const bay = this.waitingNodes.find(w => w.id === candidate.waitingNodeId);
       if (bay) {
@@ -2947,19 +2750,13 @@ export class SimulationEngine {
     return false;
   }
 
-  // ==========================================
-  // CHARGING & BREAKDOWNS
-  // ==========================================
-
   public sendRobotToCharge(robot: Robot, station?: ChargingStation): void {
-    // Dedicated dock invariant: robot must ONLY be sent to its dedicated home dock
     const dedicatedDock = this.chargingStations.find(
       (d) => d.id === robot.home_dock_id || d.assignedRobotId === robot.id
     );
     const targetStation = dedicatedDock || station || this.chargingStations.find((d) => d.id === robot.home_dock_id);
     if (!targetStation) return;
 
-    // Free previous waiting bay if robot was waiting there
     if (robot.waitingNodeId) {
       const currentBay = this.waitingNodes.find(w => w.id === robot.waitingNodeId);
       if (currentBay && (currentBay.occupyingRobotId === robot.id || currentBay.occupiedBy === robot.id || currentBay.reservedBy === robot.id)) {
@@ -3017,7 +2814,6 @@ export class SimulationEngine {
     soundEffects.playBreakdown();
 
     if (affectedTask) {
-      // Re-enqueue rescued task into Priority Queue with highest critical priority!
       this.urgentTaskQueue.enqueue(affectedTask, 1);
       this.addEvent({
         id: `rescue_${affectedTask.id}`,
@@ -3038,10 +2834,6 @@ export class SimulationEngine {
     this.addEvent(event);
   }
 
-  // ==========================================
-  // MANUAL OBSTACLE & AISLE BLOCKAGE
-  // ==========================================
-
   public toggleObstacleAt(coord: GridCoord): boolean {
     const node = this.graph.getNodeByCoord(coord.x, coord.y);
     if (!node || node.type !== 'aisle') return false;
@@ -3060,7 +2852,6 @@ export class SimulationEngine {
     });
 
     if (isNowBlocked) {
-      // Instantly recalculate routes for any robot whose route crosses this node!
       for (const robot of this.robotMap.values()) {
         const usesNode = robot.currentRoute.some(c => c.x === coord.x && c.y === coord.y);
         if (usesNode && robot.currentRoute.length > 0) {
@@ -3073,7 +2864,6 @@ export class SimulationEngine {
         }
       }
     } else {
-      // Obstacle was removed / aisle cleared: immediately wake up and recalculate routes for waiting robots
       for (const robot of this.robotMap.values()) {
         if (robot.state === 'waiting_for_path' || robot.state === 'waiting' || (robot.waitTime > 0 && robot.blockedReason)) {
           robot.waitTime = 0;
@@ -3116,7 +2906,6 @@ export class SimulationEngine {
       severity: 'info',
     });
 
-    // Wake up any waiting robots immediately
     for (const robot of this.robotMap.values()) {
       if (robot.state === 'waiting_for_path' || robot.state === 'waiting' || (robot.waitTime > 0 && robot.blockedReason)) {
         robot.waitTime = 0;
@@ -3137,10 +2926,6 @@ export class SimulationEngine {
       }
     }
   }
-
-  // ==========================================
-  // MANUAL EMERGENCY CREATION
-  // ==========================================
 
   public triggerEmergency(type: EmergencyType, params?: any): void {
     switch (type) {
@@ -3248,7 +3033,6 @@ export class SimulationEngine {
         robot.targetDeliveryNodeId = undefined;
         robot.currentRoute = [];
         robot.currentRouteIndex = 0;
-        // If robot was not carrying cargo yet, return to idle
         if (!robot.isCarrying) {
           robot.state = 'idle';
         }
@@ -3358,10 +3142,6 @@ export class SimulationEngine {
     this.processTaskAllocation();
     return true;
   }
-
-  // ==========================================
-  // METRICS & SCENARIOS
-  // ==========================================
 
   private updateMetrics(): void {
     const robots = this.robotMap.values();
@@ -3557,10 +3337,6 @@ export class SimulationEngine {
       severity: 'info',
     });
   }
-
-  // ==========================================
-  // DEVELOPER DEBUG MODE METHODS
-  // ==========================================
 
   public debugSetRobotDestination(robotId: string, destination: GridCoord): boolean {
     const robot = this.robotMap.get(robotId);
