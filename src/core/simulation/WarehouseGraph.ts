@@ -6,10 +6,6 @@ export interface Edge {
   weight: number;
 }
 
-/**
- * Graph data structure with Adjacency List representation.
- * Models the warehouse floor layout, navigable aisles, obstacles, and stations.
- */
 export class Graph {
   private nodes: Map<string, WarehouseNode> = new Map();
   private adjacencyList: Map<string, Edge[]> = new Map();
@@ -33,7 +29,6 @@ export class Graph {
     if (!this.nodes.has(fromId) || !this.nodes.has(toId)) return;
 
     const fromEdges = this.adjacencyList.get(fromId) || [];
-    // Avoid duplicate edges
     if (!fromEdges.some(e => e.toId === toId)) {
       fromEdges.push({ fromId, toId, weight });
       this.adjacencyList.set(fromId, fromEdges);
@@ -76,27 +71,20 @@ export class Graph {
       const neighbor = this.nodes.get(edge.toId);
       if (!neighbor) continue;
 
-      // 1. Docking Zone & Waiting Bay Navigation Restriction
       if (mode === 'NORMAL_TASK') {
         const currentNode = this.nodes.get(nodeId);
 
-        // If current node is in the docking zone (robot is departing its dock):
-        // Allow exiting outward: (x, 0) -> (x, 1) and (x, 1) -> (x, 2)
         if (currentNode && (currentNode.isDockingZone || currentNode.y < 2)) {
-          // Cannot move deeper into dock row or backwards
           if (neighbor.y < currentNode.y) {
             continue;
           }
-          // From dock (x, 0), only step forward into its approach lane (x, 1)
           if (currentNode.y === 0 && (neighbor.y !== 1 || neighbor.x !== currentNode.x)) {
             continue;
           }
-          // From approach lane (x, 1), only step forward out to crossway (x, 2)
           if (currentNode.y === 1 && (neighbor.y !== 2 || neighbor.x !== currentNode.x)) {
             continue;
           }
         } else {
-          // Normal warehouse traffic outside docking zone MUST NEVER traverse docking row or approach nodes
           if (
             neighbor.isDockingZone ||
             neighbor.navigationType === 'DOCK' ||
@@ -107,7 +95,6 @@ export class Graph {
           }
         }
 
-        // Waiting bays: through-traffic (picking, delivery) MUST NOT cut through waiting bays
         if (neighbor.navigationType === 'WAITING') {
           const isGoal =
             options?.goalCoord &&
@@ -118,7 +105,6 @@ export class Graph {
           }
         }
       } else if (mode === 'CHARGING_TASK') {
-        // Charging robots: allow normal nodes + designated dock approach + assigned target dock
         if (neighbor.navigationType === 'RESTRICTED') {
           continue;
         }
@@ -131,7 +117,6 @@ export class Graph {
           }
         }
       } else if (mode === 'LEAVING_DOCK') {
-        // Leaving dock: cannot enter other docks or restricted cells
         if (neighbor.navigationType === 'RESTRICTED') {
           continue;
         }
@@ -146,18 +131,15 @@ export class Graph {
         }
       }
 
-      // 2. Obstacle / Solid shelf check
       if (!options?.ignoreBlocked && neighbor.isBlocked) {
         continue;
       }
 
-      // 3. Reservation / conflict check
       if (
         !options?.ignoreReserved &&
         neighbor.reservedBy &&
         neighbor.reservedBy !== options?.reservedForRobotId
       ) {
-        // If this neighbor is the destination goal, allow reaching it
         const isGoal =
           options?.goalCoord &&
           neighbor.x === options.goalCoord.x &&
@@ -167,13 +149,11 @@ export class Graph {
         }
       }
 
-      // 4. Two-Way Lane Discipline & Directional Flow (Applies ONLY to explicit two-way corridors)
       let edgeWeight = edge.weight || 1.0;
 
       if (currentNode && neighbor) {
         const isGoal = options?.goalCoord && neighbor.x === options.goalCoord.x && neighbor.y === options.goalCoord.y;
 
-        // ONLY apply directional lane discipline if BOTH current node and neighbor are in an explicit two-way corridor
         if (currentNode.isTwoWayCorridor && neighbor.isTwoWayCorridor) {
           const dx = neighbor.x - currentNode.x;
           const dy = neighbor.y - currentNode.y;
@@ -183,23 +163,20 @@ export class Graph {
           else if (dy > 0) stepDir = 'SOUTH';
           else if (dy < 0) stepDir = 'NORTH';
 
-          // Check if neighbor enforces a specific traffic direction in two-way corridor
           if (
             neighbor.trafficDirection &&
             neighbor.trafficDirection !== 'ANY' &&
             neighbor.trafficDirection !== 'BIDIRECTIONAL'
           ) {
             if (stepDir !== 'ANY' && neighbor.trafficDirection !== stepDir && !isGoal) {
-              // Step is AGAINST designated traffic direction in a two-way corridor!
               if (options?.allowOppositeLane) {
-                edgeWeight += 25.0; // Moderate penalty for allowed emergency overtake
+                edgeWeight += 25.0;
               } else {
-                edgeWeight += 80.0; // Heavy penalty to strictly enforce lane discipline
+                edgeWeight += 80.0;
               }
             }
           }
 
-          // Penalize changing lanes mid-corridor outside of intersections
           if (
             currentNode.corridorId &&
             neighbor.corridorId &&
@@ -209,10 +186,9 @@ export class Graph {
             !neighbor.isIntersection &&
             !isGoal
           ) {
-            edgeWeight += 12.0; // Lane change penalty prevents erratic lane weaving
+            edgeWeight += 12.0;
           }
         }
-        // If either is NOT a two-way corridor: FREE MOVEMENT (edgeWeight stays 1.0, zero penalties)
       }
 
       results.push({ node: neighbor, weight: edgeWeight });
