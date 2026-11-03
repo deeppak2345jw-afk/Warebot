@@ -49,8 +49,6 @@ export const TaskBoardScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [explainTask, setExplainTask] = useState<WarehouseTask | null>(null);
-
-  // Strategy selection options
   const strategyOptions: { id: AllocationStrategyType; label: string; desc: string }[] = [
     { id: 'cost_based_adaptive', label: 'Multi-Factor Intelligent', desc: 'Weighted score of distance, battery, speed, and workload' },
     { id: 'priority_aware', label: 'Priority-Aware', desc: 'Emergency/critical tasks claim fastest & top-battery AGVs' },
@@ -60,8 +58,6 @@ export const TaskBoardScreen: React.FC = () => {
     { id: 'fastest_completion', label: 'Fastest Completion', desc: 'Minimizes total estimated pickup + delivery transit time' },
     { id: 'balanced_workload', label: 'Balanced Workload', desc: 'Equalizes total distance traveled across fleet' },
   ];
-
-  // Filter tasks
   const filteredTasks = tasks.filter((t) => {
     const matchesSearch =
       t.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -91,8 +87,6 @@ export const TaskBoardScreen: React.FC = () => {
     if (p === 'high') return 'critical';
     return 'normal';
   };
-
-  // Compute candidates table for explanation modal
   const candidatesRanking: AllocationCandidate[] = explainTask
     ? TaskAllocator.rankAllCandidates(explainTask, robots, config.allocationStrategy || 'cost_based_adaptive')
     : [];
