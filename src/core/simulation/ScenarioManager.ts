@@ -98,7 +98,7 @@ export const PRESET_SCENARIOS: Scenario[] = [
       width: 16,
       length: 16,
       robotCount: 6,
-      chargingStationCount: 2, // Constrained charging bays
+      chargingStationCount: 2,
       taskGenerationRate: 6,
       breakdownProbability: 0,
       pathfindingAlgorithm: 'astar',
