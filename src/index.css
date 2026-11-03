@@ -33,7 +33,6 @@
   }
 }
 
-/* Futuristic Scanline Effect */
 .scanlines {
   background: linear-gradient(
     rgba(18, 16, 16, 0) 50%, 
@@ -48,7 +47,6 @@
   pointer-events: none;
 }
 
-/* Neon Glow Utilities */
 .neon-border-cyan {
   border-color: var(--neon-cyan);
   box-shadow: 0 0 10px rgba(0, 229, 255, 0.35);
@@ -73,8 +71,6 @@
   color: var(--neon-cyan);
   text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
 }
-
-/* Cyber Technical Grid Background */
 .cyber-grid {
   background-size: 32px 32px;
   background-image: 
@@ -82,7 +78,6 @@
     linear-gradient(to bottom, rgba(24, 54, 83, 0.3) 1px, transparent 1px);
 }
 
-/* Custom scrollbars */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
