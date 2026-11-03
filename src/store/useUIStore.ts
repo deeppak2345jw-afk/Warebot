@@ -42,7 +42,6 @@ interface UIStoreState {
   viewMode: '2d' | '3d' | 'isometric';
   paneLayout: PaneLayoutMode;
 
-  // Map Layer Toggles (Section 10)
   layers: MapLayers;
 
   isInspectorOpen: boolean;
@@ -91,7 +90,7 @@ export const useUIStore = create<UIStoreState>((set) => ({
   selectedStationId: null,
   selectedShelfId: null,
   cameraMode: 'top_down',
-  viewMode: '2d', // Default to 2D centerpiece as requested
+  viewMode: '2d',
   paneLayout: 'split_horizontal',
 
   layers: {
