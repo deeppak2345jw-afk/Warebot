@@ -28,7 +28,7 @@ export const ChargingStationsScreen: React.FC = () => {
     const robot = robots.find((r) => r.id === robotId);
     if (station && robot) {
       if (station.assignedRobotId && station.assignedRobotId !== robot.id && robot.home_dock_id !== station.id) {
-        return; // Dedicated dock invariant
+        return;
       }
       engine.sendRobotToCharge(robot, station);
       syncState();
@@ -39,7 +39,6 @@ export const ChargingStationsScreen: React.FC = () => {
 
   return (
     <div className="flex-1 overflow-y-auto bg-[#050914] text-[#E7F4FF] select-none p-6 md:p-8 space-y-6 font-mono">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-[#183653]">
         <div>
           <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-[#00E5FF]/10 border border-[#00E5FF]/30 text-[#00E5FF] text-xs mb-2">
@@ -64,7 +63,6 @@ export const ChargingStationsScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* 3 Dedicated Charging Station Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {chargingStations.map((station) => {
           const occupyingRobot = robots.find((r) => r.id === station.occupyingRobotId);
@@ -78,7 +76,6 @@ export const ChargingStationsScreen: React.FC = () => {
                   : 'border-[#00E5FF]/40 shadow-lg shadow-[#00E5FF]/5'
               }`}
             >
-              {/* Station Header */}
               <div className="flex items-center justify-between pb-3 border-b border-[#183653]">
                 <div className="flex items-center space-x-2">
                   <div
@@ -109,7 +106,6 @@ export const ChargingStationsScreen: React.FC = () => {
                 </span>
               </div>
 
-              {/* Occupying AGV Status */}
               <div className="bg-[#101E32] p-3 rounded-xl border border-[#183653] space-y-2">
                 <div className="text-[#7F9BB8] text-xs">Docked AGV Unit</div>
                 {occupyingRobot ? (
@@ -145,7 +141,6 @@ export const ChargingStationsScreen: React.FC = () => {
                 )}
               </div>
 
-              {/* Telemetry Metrics */}
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="bg-[#101E32] p-2.5 rounded-xl border border-[#183653]">
                   <div className="text-[9px] text-[#7F9BB8]">ENERGY DELIVERED</div>
@@ -159,7 +154,6 @@ export const ChargingStationsScreen: React.FC = () => {
                 </div>
               </div>
 
-              {/* Manual Dispatch to this dedicated station (if empty) */}
               {!station.isOccupied && idleRobots.filter(r => !station.assignedRobotId || r.id === station.assignedRobotId || r.home_dock_id === station.id).length > 0 && (
                 <div className="pt-2 border-t border-[#183653] space-y-1.5">
                   <div className="text-[10px] text-[#7F9BB8]">Dedicated Robot Docking:</div>
@@ -193,7 +187,6 @@ export const ChargingStationsScreen: React.FC = () => {
         })}
       </div>
 
-      {/* Charging Queue Panel */}
       <div className="bg-[#0B1728] p-5 rounded-2xl border border-[#183653] space-y-3">
         <div className="flex items-center justify-between pb-3 border-b border-[#183653]">
           <div className="flex items-center space-x-2 text-white font-bold text-sm">
