@@ -22,10 +22,8 @@ export const MainSimulationScreen: React.FC = () => {
   const toggleAlgorithmInspector = useUIStore((s) => s.toggleAlgorithmInspector);
   const isAlgorithmInspectorOpen = useUIStore((s) => s.isAlgorithmInspectorOpen);
 
-  // Global Keyboard Shortcuts Listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input or select
       const target = e.target as HTMLElement;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA')) {
         return;
