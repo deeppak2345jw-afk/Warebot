@@ -1,8 +1,3 @@
-/**
- * Internal simulation queue helpers used by the frontend engine runtime.
- * (The project's formal data structures are implemented exclusively in C++ under src/core/data-structures/)
- */
-
 export class PriorityQueue<T> {
   private heap: { item: T; priority: number }[] = [];
 
