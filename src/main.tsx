@@ -3,8 +3,6 @@ import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App.tsx';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
-
-// Global uncaught error listener to display error overlay if window throws
 window.addEventListener('error', (event) => {
   console.error('GLOBAL WINDOW ERROR:', event.error || event.message);
   const existing = document.getElementById('global-error-banner');
