@@ -41,8 +41,6 @@ export const Warehouse2DCanvas: React.FC = () => {
   const toggleLayer = useUIStore((s) => s.toggleLayer);
   const toggleObstacleMode = useUIStore((s) => s.toggleObstacleMode);
   const setViewMode = useUIStore((s) => s.setViewMode);
-
-  // Pan & Zoom state
   const [zoom, setZoom] = useState<number>(1.0);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -59,11 +57,7 @@ export const Warehouse2DCanvas: React.FC = () => {
     node?: WarehouseNode;
     screenPos: { x: number; y: number };
   } | null>(null);
-
-  // Animation pulse accumulator for particles and energy rings
   const animTimeRef = useRef<number>(0);
-
-  // Reset Camera
   const handleResetView = useCallback(() => {
     if (!containerRef.current) return;
     const { clientWidth, clientHeight } = containerRef.current;
@@ -82,8 +76,6 @@ export const Warehouse2DCanvas: React.FC = () => {
   useEffect(() => {
     handleResetView();
   }, [handleResetView]);
-
-  // Focus on Selected Robot
   const handleFocusRobot = useCallback(() => {
     if (!selectedRobotId || !containerRef.current) return;
     const robot = engine.robotMap.get(selectedRobotId);
@@ -99,8 +91,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       y: clientHeight / 2 - targetPixelY,
     });
   }, [selectedRobotId, engine, zoom]);
-
-  // Free View WASD Key Navigation (Pan & Reset)
   useEffect(() => {
     if (!isFreeView) return;
 
@@ -130,8 +120,6 @@ export const Warehouse2DCanvas: React.FC = () => {
     window.addEventListener('keydown', handleFreeViewKey);
     return () => window.removeEventListener('keydown', handleFreeViewKey);
   }, [isFreeView, handleResetView]);
-
-  // Main Canvas Rendering Loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -147,10 +135,7 @@ export const Warehouse2DCanvas: React.FC = () => {
         animationId = requestAnimationFrame(render);
         const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
         lastTime = currentTime;
-        // Visual animation accumulator for glowing paths and energy pulses
         animTimeRef.current += dt;
-
-        // Resize canvas buffer if container size changed
         if (containerRef.current) {
           const dpr = window.devicePixelRatio || 1;
           const w = containerRef.current.clientWidth;
@@ -167,19 +152,13 @@ export const Warehouse2DCanvas: React.FC = () => {
 
         const width = canvas.width / dpr;
         const height = canvas.height / dpr;
-
-        // 1. Background
         ctx.fillStyle = '#050914';
         ctx.fillRect(0, 0, width, height);
-
-        // 2. Transform for Pan and Zoom
         ctx.save();
         ctx.translate(pan.x, pan.y);
         ctx.scale(zoom, zoom);
 
-        const cellSize = 50; // base size per grid cell in pixels
-
-        // 3. Grid
+        const cellSize = 50;
         if (layers.grid) {
           ctx.strokeStyle = '#10243E';
           ctx.lineWidth = 1;
@@ -194,64 +173,40 @@ export const Warehouse2DCanvas: React.FC = () => {
           }
           ctx.stroke();
         }
-
-        // 4. Warehouse Zones & Floor Markings
         if (layers.zones) {
           drawZones(ctx, config.width, config.length, cellSize);
           drawFloorMarkings(ctx, config.width, config.length, cellSize, animTimeRef.current);
         }
-
-        // 5. Charging Stations (CH-01, CH-02, CH-03)
         if (layers.chargingStations) {
           drawChargingStations(ctx, engine.chargingStations, cellSize, animTimeRef.current);
         }
-
-        // 5.5 Waiting & Staging Bays (W-01, W-02, ...)
         drawWaitingBays(ctx, engine.waitingNodes, cellSize, animTimeRef.current);
-
-        // 5.8 Dynamic Shelf Staging Bays for Contending Robots
         drawStagingBays(ctx, cellSize, animTimeRef.current);
-
-        // 6. Delivery Nodes (D-01, D-02, D-03)
         if (layers.deliveryNodes) {
           drawDeliveryNodes(ctx, engine.deliveryNodes, cellSize, animTimeRef.current);
         }
-
-        // 7. Shelves (Industrial Pallet Racks with Mutex Status)
         if (layers.shelves) {
           drawShelves(ctx, engine.shelfNodes, cellSize, selectedShelfId, animTimeRef.current);
-        }
-
-        // 8. Obstacles & Blocked Aisles
+        
         if (layers.obstacles) {
           drawObstacles(ctx, engine.nodes, cellSize, animTimeRef.current);
         }
-
-        // 9. Transit Heatmap Layer
         if (layers.heatmap) {
           drawHeatmap(ctx, engine.collisionAvoidance.getNodeVisits(), cellSize);
         }
-
-        // 10. Reserved / Restricted Layer
         if (layers.restricted) {
           drawRestricted(ctx, engine.collisionAvoidance.getReservedNodesSet(), cellSize, animTimeRef.current);
         }
-
-        // 11. Robot Path Ribbons & Animated Particles
         if (layers.paths) {
           drawPaths(ctx, engine.robotMap.values(), cellSize, animTimeRef.current);
         }
-
-        // 12. Autonomous Robots
         if (layers.robots) {
           drawRobots(ctx, engine.robotMap.values(), cellSize, selectedRobotId, layers.robotLabels, animTimeRef.current);
         }
-
-        // 13. Wait-For Graph Deadlock Cycle Overlay
         drawDeadlockOverlay(ctx, cellSize, animTimeRef.current);
 
-        ctx.restore(); // restore pan/zoom
-        ctx.restore(); // restore dpr
+        ctx.restore(); 
+        ctx.restore(); 
       } catch (err) {
         console.error('2D Canvas Render Error:', err);
       }
@@ -263,9 +218,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       cancelAnimationFrame(animationId);
     };
   }, [engine, syncState, pan, zoom, layers, selectedRobotId, selectedShelfId, config.width, config.length]);
-
-  // --- DRAWING FUNCTIONS ---
-
   const drawRoundedRect = (
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -288,7 +240,6 @@ export const Warehouse2DCanvas: React.FC = () => {
   };
 
   const drawZones = (ctx: CanvasRenderingContext2D, width: number, length: number, cellSize: number) => {
-    // 1. Restricted Docking Zone (Rows 0-1, x=3.5 to 16.5)
     ctx.save();
     ctx.fillStyle = 'rgba(255, 176, 32, 0.04)';
     ctx.strokeStyle = 'rgba(255, 176, 32, 0.45)';
@@ -305,20 +256,14 @@ export const Warehouse2DCanvas: React.FC = () => {
     ctx.font = '8px JetBrains Mono, monospace';
     ctx.fillStyle = 'rgba(255, 176, 32, 0.6)';
     ctx.fillText('⬇ DEDICATED APPROACH LANE (EXCLUDED FROM NORMAL A* ROUTING)', 4 * cellSize, 1 * cellSize + 14);
-
-    // Flank Standby Bays (W-01..W-04 at y=0)
     ctx.fillStyle = 'rgba(155, 92, 255, 0.05)';
     ctx.strokeStyle = 'rgba(155, 92, 255, 0.3)';
     ctx.strokeRect(0, 0, 2 * cellSize, cellSize);
     ctx.strokeRect(18 * cellSize, 0, 2 * cellSize, cellSize);
     ctx.restore();
-
-    // 2. North Crossway Label (Row 2-3)
     ctx.font = 'bold 8.5px JetBrains Mono, monospace';
     ctx.fillStyle = 'rgba(0, 229, 255, 0.5)';
     ctx.fillText('➡ NORTH CROSSWAY (BI-DIRECTIONAL TRAFFIC NETWORK)', 2 * cellSize, 2 * cellSize + 14);
-
-    // 3. Delivery & Inbound Zone (Bottom row)
     ctx.fillStyle = 'rgba(0, 245, 160, 0.05)';
     ctx.strokeStyle = 'rgba(0, 245, 160, 0.3)';
     ctx.lineWidth = 1.5;
@@ -329,8 +274,6 @@ export const Warehouse2DCanvas: React.FC = () => {
 
     ctx.fillStyle = 'rgba(0, 245, 160, 0.7)';
     ctx.fillText('📦 DISPATCH & DELIVERY DOCKS [D-01 - D-03]', 10, (length - 1) * cellSize + 15);
-
-    // 4. Storage Zone (Central shelf racks)
     ctx.fillStyle = 'rgba(38, 123, 255, 0.02)';
     ctx.strokeStyle = 'rgba(38, 123, 255, 0.2)';
     ctx.strokeRect(cellSize * 0.5, cellSize * 3.5, (width - 1) * cellSize, (length - 7) * cellSize);
@@ -343,16 +286,10 @@ export const Warehouse2DCanvas: React.FC = () => {
     cellSize: number,
     time: number
   ) => {
-    // 1. Two-cell corridor centerlines (white/amber dashed)
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([6, 6]);
-
-    // Horizontal 2-cell corridors:
-    // North Crossway: y = 2
-    // Storage Aisles: y = 6, y = 10, y = 14
-    // South Crossway: y = 18
     const horizBorders = [2, 6, 10, 14, 18];
     for (const row of horizBorders) {
       if (row < length) {
@@ -362,9 +299,6 @@ export const Warehouse2DCanvas: React.FC = () => {
         ctx.stroke();
       }
     }
-
-    // Vertical 2-cell thoroughfares:
-    // West: x = 1, Center: x = 10, East: x = 19
     const vertBorders = [1, 10, 19];
     for (const col of vertBorders) {
       if (col < width) {
@@ -376,8 +310,6 @@ export const Warehouse2DCanvas: React.FC = () => {
     }
     ctx.setLineDash([]);
     ctx.restore();
-
-    // 2. Directional Lane Chevrons on logical nodes
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
     ctx.lineWidth = 1.4;
@@ -410,8 +342,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       ctx.stroke();
     }
     ctx.restore();
-
-    // 3. Controlled Intersection 2x2 Boundary Outlines
     const intersections = engine.trafficManager ? engine.trafficManager.getAllIntersections() : [];
     ctx.save();
     for (const zone of intersections) {
@@ -433,7 +363,6 @@ export const Warehouse2DCanvas: React.FC = () => {
     cellSize: number,
     time: number
   ) => {
-    // 1. Draw Empty Logical Buffer Nodes between adjacent docks: [D1][BUFFER][D2][BUFFER][D3]...
     const bufferCols = [3, 5, 7, 9, 11, 13, 15, 17];
     ctx.save();
     for (const bx of bufferCols) {
@@ -453,26 +382,17 @@ export const Warehouse2DCanvas: React.FC = () => {
       ctx.fillText('BUFFER', bpx + cellSize / 2, bpy + cellSize / 2);
     }
     ctx.restore();
-
-    // 2. Draw Integrated Home Docks
     for (const station of stations) {
       const px = station.coord.x * cellSize;
       const py = station.coord.y * cellSize;
 
       const dockState = station.dockState || (station.isOccupied ? 'OCCUPIED' : 'AVAILABLE');
-
-      // Status Colors:
-      // GREEN: Available (charged, ready for tasks)
-      // YELLOW: Charging (in progress)
-      // RED: Occupied (robot present, charging complete)
-      let statusColor = '#22C55E'; // Green
+      let statusColor = '#22C55E'; 
       if (dockState === 'CHARGING') {
-        statusColor = '#EAB308'; // Yellow
+        statusColor = '#EAB308';
       } else if (dockState === 'OCCUPIED' || station.isOccupied) {
-        statusColor = '#EF4444'; // Red
+        statusColor = '#EF4444'; 
       }
-
-      // Base Pad
       ctx.fillStyle = station.isOccupied ? 'rgba(16, 42, 69, 0.9)' : 'rgba(11, 30, 50, 0.85)';
       ctx.strokeStyle = statusColor;
       ctx.lineWidth = 2;
@@ -480,12 +400,8 @@ export const Warehouse2DCanvas: React.FC = () => {
       drawRoundedRect(ctx, px + 3, py + 3, cellSize - 6, cellSize - 6, 8);
       ctx.fill();
       ctx.stroke();
-
-      // Top Charging Port Structure
       ctx.fillStyle = statusColor;
       ctx.fillRect(px + cellSize / 2 - 8, py + 3, 16, 3);
-
-      // Animated Pulsing Energy Ring
       const pulse = (Math.sin(time * 3 + station.coord.x) + 1) / 2;
       ctx.strokeStyle = statusColor;
       ctx.globalAlpha = 0.3 + pulse * 0.4;
@@ -494,8 +410,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       ctx.arc(px + cellSize / 2, py + cellSize / 2, 12 + pulse * 3, 0, Math.PI * 2);
       ctx.stroke();
       ctx.globalAlpha = 1.0;
-
-      // Status indicator light (Top-right of dock)
       ctx.fillStyle = statusColor;
       ctx.shadowColor = statusColor;
       ctx.shadowBlur = 6;
@@ -503,23 +417,17 @@ export const Warehouse2DCanvas: React.FC = () => {
       ctx.arc(px + cellSize - 8, py + 8, 3, 0, Math.PI * 2);
       ctx.fill();
       ctx.shadowBlur = 0;
-
-      // Dock ID
       ctx.font = 'bold 8.5px JetBrains Mono, monospace';
       ctx.fillStyle = '#FFFFFF';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(station.id, px + cellSize / 2, py + cellSize / 2 - 5);
-
-      // Assigned Robot Tag
       const assigned = station.assignedRobotId || (station.occupyingRobotId ? station.occupyingRobotId : '');
       if (assigned) {
         ctx.font = 'bold 8px JetBrains Mono, monospace';
         ctx.fillStyle = statusColor;
         ctx.fillText(assigned, px + cellSize / 2, py + cellSize / 2 + 7);
       }
-
-      // Dock Queue Indicator
       if (station.queue && station.queue.length > 0) {
         ctx.fillStyle = '#F59E0B';
         ctx.fillRect(px + 4, py + cellSize - 11, 24, 8);
@@ -539,8 +447,6 @@ export const Warehouse2DCanvas: React.FC = () => {
     for (const node of nodes) {
       const px = node.coord.x * cellSize;
       const py = node.coord.y * cellSize;
-
-      // Platform / Bay Frame
       ctx.fillStyle = node.isOccupied ? 'rgba(155, 92, 255, 0.15)' : 'rgba(155, 92, 255, 0.05)';
       ctx.strokeStyle = node.isOccupied ? '#9B5CFF' : 'rgba(155, 92, 255, 0.6)';
       ctx.lineWidth = node.isOccupied ? 2 : 1.2;
@@ -550,15 +456,11 @@ export const Warehouse2DCanvas: React.FC = () => {
       ctx.fill();
       ctx.stroke();
       ctx.setLineDash([]);
-
-      // Subtle pulsating standby indicator
       const pulse = (Math.sin(time * 2.0 + node.coord.x) + 1) / 2;
       ctx.fillStyle = node.isOccupied ? '#9B5CFF' : `rgba(155, 92, 255, ${0.4 + pulse * 0.4})`;
       ctx.beginPath();
       ctx.arc(px + cellSize / 2, py + cellSize / 2 - 5, 2.5, 0, Math.PI * 2);
       ctx.fill();
-
-      // Bay Label (e.g. W-01)
       ctx.font = 'bold 8.5px JetBrains Mono, monospace';
       ctx.fillStyle = '#C084FC';
       ctx.textAlign = 'center';
@@ -616,8 +518,6 @@ export const Warehouse2DCanvas: React.FC = () => {
     for (const node of nodes) {
       const px = node.coord.x * cellSize;
       const py = node.coord.y * cellSize;
-
-      // Platform
       ctx.fillStyle = '#07241D';
       ctx.strokeStyle = '#00F5A0';
       ctx.lineWidth = 2;
@@ -625,16 +525,12 @@ export const Warehouse2DCanvas: React.FC = () => {
       drawRoundedRect(ctx, px + 4, py + 4, cellSize - 8, cellSize - 8, 8);
       ctx.fill();
       ctx.stroke();
-
-      // Outer Beacon Ring
       const pulse = (Math.sin(time * 2.5 + node.coord.x) + 1) / 2;
       ctx.strokeStyle = `rgba(0, 245, 160, ${0.3 + pulse * 0.5})`;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(px + cellSize / 2, py + cellSize / 2, 14 + pulse * 3, 0, Math.PI * 2);
       ctx.stroke();
-
-      // Label & Delivered Count
       ctx.font = 'bold 9px JetBrains Mono, monospace';
       ctx.fillStyle = '#00F5A0';
       ctx.textAlign = 'center';
@@ -660,8 +556,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       const px = shelf.x * cellSize;
       const py = shelf.y * cellSize;
       const isSelected = shelf.shelfId === selectedShelf;
-
-      // 1. Industrial Steel Upright Rack Frame
       ctx.fillStyle = isSelected ? '#1A334E' : '#0B1726';
       ctx.strokeStyle = isSelected ? '#00E5FF' : '#334155';
       ctx.lineWidth = isSelected ? 2.5 : 1.5;
@@ -669,20 +563,12 @@ export const Warehouse2DCanvas: React.FC = () => {
       drawRoundedRect(ctx, px + 4, py + 4, cellSize - 8, cellSize - 8, 5);
       ctx.fill();
       ctx.stroke();
-
-      // Steel upright columns (vertical posts on left and right)
       ctx.fillStyle = isSelected ? '#00E5FF' : '#475569';
       ctx.fillRect(px + 4, py + 4, 3, cellSize - 8);
       ctx.fillRect(px + cellSize - 7, py + 4, 3, cellSize - 8);
-
-      // 2. Horizontal Industrial Safety Orange Beams (#EA580C / #D97706)
       ctx.fillStyle = '#EA580C';
-      // Lower beam
       ctx.fillRect(px + 7, py + cellSize / 2 + 3, cellSize - 14, 2.5);
-      // Upper beam
       ctx.fillRect(px + 7, py + cellSize / 2 - 9, cellSize - 14, 2.5);
-
-      // 3. Product Carton Boxes inside rack
       const invLevel = shelf.shelfInfo?.inventoryLevel ?? 12;
       const maxCap = shelf.shelfInfo?.maxCapacity ?? 50;
       const ratio = Math.min(1, invLevel / maxCap);
@@ -700,13 +586,9 @@ export const Warehouse2DCanvas: React.FC = () => {
         ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 0.5;
         ctx.strokeRect(bx, by, 9, 7);
-
-        // Center tape line
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
         ctx.fillRect(bx + 3.5, by, 2, 7);
       }
-
-      // 4. Shelf ID Label (with high-contrast backing badge)
       ctx.font = 'bold 8.5px JetBrains Mono, monospace';
       const shelfText = shelf.shelfId || 'RACK';
       const textMetrics = ctx.measureText(shelfText);
@@ -727,20 +609,17 @@ export const Warehouse2DCanvas: React.FC = () => {
       ctx.textBaseline = 'middle';
       ctx.fillText(shelfText, px + cellSize / 2, py + cellSize - 9.5);
 
-      // 5. Shelf Resource Mutex Status Badge
       const resource = engine.shelfAccessManager.getShelfResource(shelf.shelfId || '');
       const status = resource?.status || 'AVAILABLE';
 
-      let statusColor = '#10B981'; // AVAILABLE = Green
+      let statusColor = '#10B981'; 
       if (status === 'RESERVED') {
-        statusColor = '#F59E0B'; // RESERVED = Amber
+        statusColor = '#F59E0B'; 
       } else if (status === 'OCCUPIED') {
-        statusColor = '#EF4444'; // OCCUPIED = Red
+        statusColor = '#EF4444'; 
       } else if (status === 'WAITING') {
-        statusColor = '#A855F7'; // WAITING = Purple
-      }
-
-      // Status indicator dot with pulsating halo if busy
+        statusColor = '#A855F7'; 
+      
       const dotX = px + cellSize - 9;
       const dotY = py + 9;
 
@@ -776,12 +655,8 @@ export const Warehouse2DCanvas: React.FC = () => {
       ctx.beginPath();
       drawRoundedRect(ctx, px + 2, py + 2, cellSize - 4, cellSize - 4, 6);
       ctx.clip();
-
-      // Background hazard fill
       ctx.fillStyle = '#2A1208';
       ctx.fillRect(px, py, cellSize, cellSize);
-
-      // Diagonal hazard stripes
       ctx.strokeStyle = '#FFB020';
       ctx.lineWidth = 4;
       const offset = (time * 20) % 16;
@@ -793,8 +668,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       }
 
       ctx.restore();
-
-      // Border and Hazard Icon
       ctx.strokeStyle = '#FF3D71';
       ctx.lineWidth = 2;
       ctx.strokeRect(px + 2, py + 2, cellSize - 4, cellSize - 4);
@@ -871,7 +744,6 @@ export const Warehouse2DCanvas: React.FC = () => {
     cellSize: number,
     time: number
   ) => {
-    // 1. Completed Path Trails (Historical, fading dotted gray)
     for (const robot of robots) {
       if (!robot.completedPaths || robot.completedPaths.length === 0) continue;
       for (const comp of robot.completedPaths) {
@@ -893,8 +765,6 @@ export const Warehouse2DCanvas: React.FC = () => {
         ctx.restore();
       }
     }
-
-    // 2. Queued Paths (Task awaiting / allocated, dashed yellow/amber)
     const activeTasks = engine.taskMap.values().filter((t) => t.status === 'allocated' || t.status === 'in_progress');
     for (const task of activeTasks) {
       if (task.assignedRobotId) {
@@ -904,7 +774,7 @@ export const Warehouse2DCanvas: React.FC = () => {
           const endPt = robot.isCarrying ? task.destinationCoord : task.pickupCoord;
 
           ctx.save();
-          ctx.strokeStyle = '#FBBF24'; // Amber
+          ctx.strokeStyle = '#FBBF24';
           ctx.lineWidth = 2;
           ctx.setLineDash([5, 5]);
           ctx.lineDashOffset = -time * 15;
@@ -913,8 +783,6 @@ export const Warehouse2DCanvas: React.FC = () => {
           ctx.lineTo(endPt.x * cellSize + cellSize / 2, endPt.y * cellSize + cellSize / 2);
           ctx.stroke();
           ctx.setLineDash([]);
-
-          // Waypoint dots on queued path
           ctx.fillStyle = '#FBBF24';
           ctx.globalAlpha = 0.6;
           ctx.beginPath();
@@ -926,8 +794,6 @@ export const Warehouse2DCanvas: React.FC = () => {
         }
       }
     }
-
-    // 3. Active Paths (Robot actively moving, Bright Green #4ADE80 through all waypoints)
     for (const robot of robots) {
       if (robot.currentRoute.length <= 1 || robot.state === 'breakdown' || robot.state === 'charging') {
         continue;
@@ -948,7 +814,7 @@ export const Warehouse2DCanvas: React.FC = () => {
       }
 
       ctx.save();
-      // Bright Green solid line with subtle glow
+    
       ctx.strokeStyle = '#4ADE80';
       ctx.lineWidth = 2.5;
       ctx.shadowColor = 'rgba(74, 222, 128, 0.6)';
@@ -960,8 +826,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       }
       ctx.stroke();
       ctx.shadowBlur = 0;
-
-      // Waypoint Visualization: Small circles (2.5px diameter) at each waypoint vertex
       ctx.fillStyle = '#4ADE80';
       ctx.globalAlpha = 0.6;
       for (let i = 1; i < points.length; i++) {
@@ -970,8 +834,6 @@ export const Warehouse2DCanvas: React.FC = () => {
         ctx.fill();
       }
       ctx.globalAlpha = 1.0;
-
-      // Moving energy pulse particle along active path
       const totalPoints = points.length;
       if (totalPoints > 1) {
         const t = (time * 1.8) % (totalPoints - 1);
@@ -991,8 +853,6 @@ export const Warehouse2DCanvas: React.FC = () => {
         ctx.fill();
         ctx.shadowBlur = 0;
       }
-
-      // 4. Path Debugging Mode: Waypoint coordinates & A* metrics
       if (showPathDebug || isDebugMode) {
         ctx.font = '8px JetBrains Mono, monospace';
         ctx.fillStyle = '#A7F3D0';
@@ -1013,8 +873,6 @@ export const Warehouse2DCanvas: React.FC = () => {
 
       ctx.restore();
     }
-
-    // 5. Algorithm Route & Explored Frontier Overlay
     if (activeFrontierNodes && activeFrontierNodes.length > 0) {
       ctx.save();
       for (const node of activeFrontierNodes) {
@@ -1046,8 +904,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       }
       ctx.stroke();
       ctx.shadowBlur = 0;
-
-      // Draw waypoints
       ctx.fillStyle = '#FFFFFF';
       for (let i = 0; i < customInspectedRoute.length; i++) {
         const pt = customInspectedRoute[i];
@@ -1074,8 +930,6 @@ export const Warehouse2DCanvas: React.FC = () => {
 
       ctx.save();
       ctx.translate(px, py);
-
-      // Status Underglow Ring
       let statusColor = '#00E5FF';
       if (robot.state === 'breakdown') statusColor = '#FF3D71';
       else if (robot.state === 'charging') statusColor = '#FFB020';
@@ -1095,8 +949,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       ctx.arc(0, 0, 18, 0, Math.PI * 2);
       ctx.stroke();
       ctx.shadowBlur = 0;
-
-      // Selection Ring
       if (isSelected) {
         ctx.strokeStyle = '#FFFFFF';
         ctx.lineWidth = 1.5;
@@ -1106,11 +958,7 @@ export const Warehouse2DCanvas: React.FC = () => {
         ctx.stroke();
         ctx.setLineDash([]);
       }
-
-      // Rotate robot chassis towards heading
       ctx.rotate(robot.heading);
-
-      // AGV Chassis Body
       ctx.fillStyle = '#0F1E32';
       ctx.strokeStyle = robot.color;
       ctx.lineWidth = 1.5;
@@ -1118,8 +966,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       drawRoundedRect(ctx, -14, -14, 28, 28, 6);
       ctx.fill();
       ctx.stroke();
-
-      // Heading Arrow (Direction indicator)
       ctx.fillStyle = robot.color;
       ctx.beginPath();
       ctx.moveTo(0, 12);
@@ -1127,8 +973,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       ctx.lineTo(5, 5);
       ctx.closePath();
       ctx.fill();
-
-      // Visible Cargo Cubes (Max 3 capacity units)
       if (robot.cargoCount > 0) {
         const boxSize = 6;
         for (let b = 0; b < robot.cargoCount; b++) {
@@ -1139,8 +983,6 @@ export const Warehouse2DCanvas: React.FC = () => {
           ctx.strokeRect(-9 + b * 7, -9, boxSize, boxSize);
         }
       }
-
-      // Breakdown Warning Hologram
       if (robot.state === 'breakdown') {
         const pulse = (Math.sin(time * 6) + 1) / 2;
         ctx.fillStyle = `rgba(255, 61, 113, ${0.7 + pulse * 0.3})`;
@@ -1150,21 +992,15 @@ export const Warehouse2DCanvas: React.FC = () => {
         ctx.fillText('✖', 0, 0);
       }
 
-      ctx.restore(); // restore robot orientation
-
-      // Robot Label & Battery Tag
+      ctx.restore(); 
       if (showLabels) {
         ctx.font = 'bold 9px JetBrains Mono, monospace';
         ctx.fillStyle = '#E7F4FF';
         ctx.textAlign = 'center';
         ctx.fillText(robot.name, px, py + 30);
-
-        // Battery pill
         ctx.font = '8px JetBrains Mono, monospace';
         ctx.fillStyle = robot.battery < 25 ? '#FF3D71' : '#7F9BB8';
         ctx.fillText(`${robot.battery.toFixed(0)}%`, px, py + 39);
-
-        // State indicator for backoff / yielding / staged / deadlock recovery / overtake / queue
         if (robot.isTemporaryOppositeLane) {
           ctx.font = 'bold 8px JetBrains Mono, monospace';
           ctx.fillStyle = '#F59E0B';
@@ -1190,8 +1026,6 @@ export const Warehouse2DCanvas: React.FC = () => {
           ctx.fillStyle = '#F97316';
           ctx.fillText('DEADLOCK BACKTRACK', px, py + 48);
         }
-
-        // Effective Priority tag
         if (robot.effectivePriority !== undefined && robot.effectivePriority > 0) {
           ctx.font = '7.5px JetBrains Mono, monospace';
           ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
@@ -1215,8 +1049,6 @@ export const Warehouse2DCanvas: React.FC = () => {
         .filter((r): r is Robot => r !== undefined);
 
       if (robots.length < 2) continue;
-
-      // Draw dashed red/orange cycle connecting deadlocked robots
       ctx.save();
       const pulse = (Math.sin(time * 5) + 1) / 2;
       ctx.strokeStyle = `rgba(239, 68, 68, ${0.7 + pulse * 0.3})`;
@@ -1234,8 +1066,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       ctx.lineTo(first.position.x * cellSize + cellSize / 2, first.position.z * cellSize + cellSize / 2);
       ctx.stroke();
       ctx.setLineDash([]);
-
-      // Highlight the victim robot with an arrow to clearanceCoord
       const victim = engine.robotMap.get(deadlock.victimRobotId);
       if (victim && deadlock.clearanceCoord) {
         const vx = victim.position.x * cellSize + cellSize / 2;
@@ -1251,8 +1081,6 @@ export const Warehouse2DCanvas: React.FC = () => {
         ctx.lineTo(cx, cy);
         ctx.stroke();
         ctx.setLineDash([]);
-
-        // Clearance target marker
         ctx.fillStyle = '#F97316';
         ctx.beginPath();
         ctx.arc(cx, cy, 6, 0, Math.PI * 2);
@@ -1268,8 +1096,6 @@ export const Warehouse2DCanvas: React.FC = () => {
     }
   };
 
-  // --- MOUSE / POINTER INTERACTIONS ---
-
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     setIsDragging(true);
     setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
@@ -1283,8 +1109,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       });
       return;
     }
-
-    // Hover inspection
     if (!canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     const clickX = (e.clientX - rect.left - pan.x) / zoom;
@@ -1296,8 +1120,6 @@ export const Warehouse2DCanvas: React.FC = () => {
 
     const node = engine.graph.getNodeByCoord(gx, gy);
     setHoveredNode(node || null);
-
-    // 1. Check robot hover
     const robots = engine.robotMap.values();
     let foundRobot: Robot | undefined;
     for (const r of robots) {
@@ -1312,38 +1134,28 @@ export const Warehouse2DCanvas: React.FC = () => {
       setHoveredInfo({ type: 'robot', robot: foundRobot, screenPos });
       return;
     }
-
-    // 2. Check shelf hover
     const shelf = engine.shelfNodes.find((s) => s.x === gx && s.y === gy);
     if (shelf) {
       const product = engine.getProducts().find((p) => p.shelfId === shelf.shelfId);
       setHoveredInfo({ type: 'shelf', shelf, product, screenPos });
       return;
     }
-
-    // 3. Check charging station hover
     const cs = engine.chargingStations.find((c) => c.coord.x === gx && c.coord.y === gy);
     if (cs) {
       setHoveredInfo({ type: 'charging', station: cs, screenPos });
       return;
     }
-
-    // 3.5 Check waiting bay hover
     const wb = engine.waitingNodes.find((w) => w.coord.x === gx && w.coord.y === gy);
     if (wb) {
       const occupant = wb.occupyingRobotId ? engine.robotMap.get(wb.occupyingRobotId) : undefined;
       setHoveredInfo({ type: 'waiting', waitingBay: wb, robot: occupant, screenPos });
       return;
     }
-
-    // 4. Check delivery node hover
     const dn = engine.deliveryNodes.find((d) => d.coord.x === gx && d.coord.y === gy);
     if (dn) {
       setHoveredInfo({ type: 'delivery', station: dn, screenPos });
       return;
     }
-
-    // 5. Check regular node hover
     if (node) {
       setHoveredInfo({ type: 'node', node, screenPos });
       return;
@@ -1353,7 +1165,6 @@ export const Warehouse2DCanvas: React.FC = () => {
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    // If user dragged a significant distance, don't trigger click
     const dist = Math.hypot(e.clientX - (dragStart.x + pan.x), e.clientY - (dragStart.y + pan.y));
     setIsDragging(false);
 
@@ -1367,8 +1178,6 @@ export const Warehouse2DCanvas: React.FC = () => {
     const cellSize = 50;
     const gx = Math.floor(clickX / cellSize);
     const gy = Math.floor(clickY / cellSize);
-
-    // 1. Obstacle Mode Click
     if (isObstacleMode) {
       if (gx >= 0 && gx < config.width && gy >= 0 && gy < config.length) {
         engine.toggleObstacleAt({ x: gx, y: gy });
@@ -1376,8 +1185,6 @@ export const Warehouse2DCanvas: React.FC = () => {
       }
       return;
     }
-
-    // 2. Check Robot Hit
     const robots = engine.robotMap.values();
     for (const r of robots) {
       const rx = r.position.x * cellSize + cellSize / 2;
@@ -1387,29 +1194,21 @@ export const Warehouse2DCanvas: React.FC = () => {
         return;
       }
     }
-
-    // 3. Check Shelf Hit
     const shelfNode = engine.shelfNodes.find((s) => s.x === gx && s.y === gy);
     if (shelfNode && shelfNode.shelfId) {
       selectShelf(shelfNode.shelfId);
       return;
     }
-
-    // 4. Check Charging Station Hit
     const cs = engine.chargingStations.find((c) => c.coord.x === gx && c.coord.y === gy);
     if (cs) {
       selectStation(cs.id);
       return;
     }
-
-    // 4.5 Check Waiting Bay Hit
     const hitWb = engine.waitingNodes.find((w) => w.coord.x === gx && w.coord.y === gy);
     if (hitWb && hitWb.occupyingRobotId) {
       selectRobot(hitWb.occupyingRobotId);
       return;
     }
-
-    // 5. Check Delivery Node Hit
     const dn = engine.deliveryNodes.find((d) => d.coord.x === gx && d.coord.y === gy);
     if (dn) {
       selectStation(dn.id);
@@ -1448,7 +1247,7 @@ export const Warehouse2DCanvas: React.FC = () => {
         }`}
       />
 
-      {/* Obstacle Mode Active Banner */}
+      {}
       {isObstacleMode && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-[#FFB020] text-black px-4 py-1.5 rounded-full font-mono text-xs font-bold shadow-lg flex items-center gap-2 animate-bounce z-10 pointer-events-none">
           <AlertTriangle className="w-4 h-4" />
@@ -1456,9 +1255,9 @@ export const Warehouse2DCanvas: React.FC = () => {
         </div>
       )}
 
-      {/* Canvas Zoom & Focus Controls Toolbar */}
+      {}
       <div className="absolute bottom-4 right-4 flex items-center gap-2 z-10 select-none">
-        {/* Zoom & Camera Buttons */}
+        {}
         <div className="bg-[#0B1728]/95 backdrop-blur-md border border-[#183653] p-1 rounded-xl flex items-center gap-1 shadow-xl text-xs font-mono">
           <button
             onClick={() => setZoom((z) => Math.min(3.0, z * 1.2))}
@@ -1493,7 +1292,7 @@ export const Warehouse2DCanvas: React.FC = () => {
           )}
         </div>
 
-        {/* Map Layers Dropdown */}
+        {}
         <div className="relative">
           <button
             onClick={() => setIsLayerMenuOpen(!isLayerMenuOpen)}
@@ -1545,7 +1344,7 @@ export const Warehouse2DCanvas: React.FC = () => {
         </div>
       </div>
 
-      {/* Floating Rich Tooltip */}
+      {}
       {hoveredInfo && !isDragging && (
         <div
           className="absolute z-20 pointer-events-none bg-[#0B1728]/95 backdrop-blur-md border border-[#183653] p-2.5 rounded-lg shadow-2xl text-xs font-mono max-w-xs space-y-1 transition-all duration-75"
@@ -1757,7 +1556,7 @@ export const Warehouse2DCanvas: React.FC = () => {
         </div>
       )}
 
-      {/* Bottom-left Hover Coordinate Pill */}
+      {}
       {hoveredNode && (
         <div className="absolute bottom-4 left-4 bg-[#0B1728]/90 backdrop-blur-md border border-[#183653] px-3 py-1.5 rounded-lg font-mono text-[11px] text-[#7F9BB8] z-10 flex items-center gap-2">
           <span>
