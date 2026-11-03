@@ -1,14 +1,8 @@
-/**
- * Web Audio API Synthesizer for futuristic sci-fi sound effects.
- * Synthesizes audio procedurally using standard oscillators with zero external assets.
- */
-
 class SoundSynthesizer {
   private ctx: AudioContext | null = null;
   public isMuted: boolean = false;
 
   constructor() {
-    // Check localStorage preference
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         const saved = localStorage.getItem('robofleet_muted');
@@ -50,9 +44,6 @@ class SoundSynthesizer {
     return this.isMuted;
   }
 
-  /**
-   * Crisp futuristic UI click
-   */
   public playClick(): void {
     const ctx = this.getContext();
     if (!ctx) return;
@@ -76,9 +67,6 @@ class SoundSynthesizer {
     } catch {}
   }
 
-  /**
-   * Upbeat double blip when a task is created or queued
-   */
   public playTaskCreated(): void {
     const ctx = this.getContext();
     if (!ctx) return;
@@ -89,8 +77,8 @@ class SoundSynthesizer {
       const gain = ctx.createGain();
 
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(587.33, now); // D5
-      osc.frequency.setValueAtTime(880, now + 0.06); // A5
+      osc.frequency.setValueAtTime(587.33, now); 
+      osc.frequency.setValueAtTime(880, now + 0.06);
 
       gain.gain.setValueAtTime(0.09, now);
       gain.gain.setValueAtTime(0.09, now + 0.05);
@@ -103,17 +91,13 @@ class SoundSynthesizer {
       osc.stop(now + 0.15);
     } catch {}
   }
-
-  /**
-   * Rising melodic chime when an AGV picks up inventory from a shelf
-   */
   public playPickup(): void {
     const ctx = this.getContext();
     if (!ctx) return;
 
     try {
       const now = ctx.currentTime;
-      const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
+      const notes = [523.25, 659.25, 783.99];
 
       notes.forEach((freq, i) => {
         const osc = ctx.createOscillator();
@@ -133,17 +117,13 @@ class SoundSynthesizer {
       });
     } catch {}
   }
-
-  /**
-   * Harmonious delivery completion fanfare
-   */
   public playDelivery(): void {
     const ctx = this.getContext();
     if (!ctx) return;
 
     try {
       const now = ctx.currentTime;
-      const notes = [659.25, 783.99, 1046.5]; // E5, G5, C6
+      const notes = [659.25, 783.99, 1046.5]; 
 
       notes.forEach((freq, i) => {
         const osc = ctx.createOscillator();
@@ -163,10 +143,6 @@ class SoundSynthesizer {
       });
     } catch {}
   }
-
-  /**
-   * Pulsing alert siren for emergency / lockdown events
-   */
   public playEmergency(): void {
     const ctx = this.getContext();
     if (!ctx) return;
@@ -191,10 +167,6 @@ class SoundSynthesizer {
       osc.stop(now + 0.45);
     } catch {}
   }
-
-  /**
-   * Low mechanical buzz for breakdowns
-   */
   public playBreakdown(): void {
     const ctx = this.getContext();
     if (!ctx) return;
