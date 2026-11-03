@@ -30,10 +30,6 @@ export interface GeneratedWarehouse {
 }
 
 export class WarehouseGenerator {
-  /**
-   * Procedurally generates a realistic warehouse layout with aisles, shelves,
-   * charging bays, delivery nodes, and receiving docks.
-   */
   public static generate(config: WarehouseConfig): GeneratedWarehouse {
     const graph = new Graph();
     const nodes: WarehouseNode[] = [];
@@ -48,7 +44,6 @@ export class WarehouseGenerator {
 
     const { width, length } = config;
 
-    // First pass: generate all nodes with types
     let shelfCounter = 0;
 
     for (let y = 0; y < length; y++) {
@@ -66,8 +61,6 @@ export class WarehouseGenerator {
         let isDockingZone = false;
 
         if (y === 0) {
-          // Row 0: Restricted Integrated Docking Row (100% Docking Zone)
-          // Integrated Docks spaced with at least ONE EMPTY LOGICAL NODE: [BUFFER][DOCK-01][BUFFER][DOCK-02][BUFFER]...
           const targetDockCount = Math.max(config.chargingStationCount || 4, config.robotCount || 6);
           const dockSlots = [4, 6, 8, 10, 12, 14, 16, 18];
           const isDockSlot = dockSlots.includes(x) && chargingStations.length < targetDockCount;
@@ -98,7 +91,6 @@ export class WarehouseGenerator {
             zone = 'Restricted Docking Buffer';
           }
         } else if (y === 1) {
-          // Row 1: Dedicated Dock Approach & Staging Lane (for docks at x=4,6,8,10,12,14,16,18)
           const isDockApproach = (x >= 4 && x <= 18);
           if (isDockApproach) {
             type = 'aisle';
@@ -111,12 +103,10 @@ export class WarehouseGenerator {
             zone = 'North Crossway Approach';
           }
         } else if (y === 2) {
-          // Row 2: North Crossway (high-speed bi-directional transit)
           type = 'aisle';
           navigationType = 'NORMAL';
           zone = 'North Crossway';
         } else if (y === length - 1) {
-          // Bottom Row: Delivery Docks (D-01..D-03), Inbound Docks, and Dispatch Staging (SOUTH edge)
           const isDeliverySlot = (x === 4 || x === 10 || x === 16) && deliveryNodes.length < config.deliveryNodeCount;
           const isPickupSlot = (x === 2 || x === 18) && pickupStations.length < 2;
 
@@ -151,12 +141,10 @@ export class WarehouseGenerator {
             zone = 'Dispatch Staging Area';
           }
         } else if (y === length - 2) {
-          // Row length - 2: South Crossway (high-speed bi-directional transit)
           type = 'aisle';
           navigationType = 'NORMAL';
           zone = 'South Crossway';
         } else {
-          // Rows y = 3 to length - 3: Check outer WEST (x=0) and EAST (x=width-1) edges for dedicated WAITING BAYS
           const isOuterEdge = (x === 0 || x === width - 1);
           const isWaitingSlot = isOuterEdge && (y % 2 === 1) && waitingNodes.length < 16;
 
@@ -173,24 +161,19 @@ export class WarehouseGenerator {
               isOccupied: false,
             });
           } else if (isOuterEdge) {
-            // Buffer empty logical node between waiting bays [W1][EMPTY][W2][EMPTY][W3]
             type = 'aisle';
             navigationType = 'NORMAL';
             zone = x === 0 ? 'Outer West Buffer Aisle' : 'Outer East Buffer Aisle';
           } else if (y === 3) {
-            // Interior North Crossway row 3
             type = 'aisle';
             navigationType = 'NORMAL';
             zone = 'North Crossway';
           } else if (y === length - 3) {
-            // Interior South Crossway row length - 3
             type = 'aisle';
             navigationType = 'NORMAL';
             zone = 'South Crossway';
           } else {
-            // Middle Storage Rows (y = 4 to length - 4): Storage racks separated by TWO-CELL-WIDE AISLES
             const midX = Math.floor(width / 2);
-            // 2-cell vertical thoroughfares: Left (x=1), Right (x=width-2), Center (x=midX-1,midX), Intermediates (x=5,14)
             const isCrossAisle =
               x === 1 ||
               x === width - 2 ||
@@ -199,19 +182,17 @@ export class WarehouseGenerator {
               x === 5 ||
               x === 14;
 
-            // 2 shelf rows followed by 2 aisle rows
             const relY = y - 4;
             const isShelfRow = relY % 4 === 0 || relY % 4 === 1;
 
             if (isShelfRow && !isCrossAisle) {
               type = 'shelf';
               navigationType = 'RESTRICTED';
-              isBlocked = true; // Physical shelf structure (solid)
+              isBlocked = true;
 
-              // Letters A, B, C, E, F, G, H, J, K, L, M, N, P, R, S, T (skipping D to avoid confusion with Delivery Node D-01)
               const aisleLetters = ['A', 'B', 'C', 'E', 'F', 'G', 'H', 'J', 'K', 'L', 'M', 'N', 'P', 'R', 'S', 'T'];
               const bankIndex = Math.floor(relY / 4);
-              const rowInBank = relY % 4; // 0 or 1
+              const rowInBank = relY % 4;
               const shelfRowIndex = bankIndex * 2 + rowInBank;
               const letterIdx = shelfRowIndex % aisleLetters.length;
               const tierSuffix = Math.floor(shelfRowIndex / aisleLetters.length);
@@ -262,7 +243,6 @@ export class WarehouseGenerator {
       }
     }
 
-    // Ensure at least 3 Delivery Nodes exist
     if (deliveryNodes.length === 0) {
       const d1Node = nodes.find(n => n.y === length - 1 && n.x === 2);
       if (d1Node) {
@@ -280,8 +260,6 @@ export class WarehouseGenerator {
       }
     }
 
-    // Second pass: connect grid edges
-    // CRITICAL: Docking Row (y=0) has NO horizontal edges! Robots cannot travel sideways through the docking row!
     for (const node of nodes) {
       const neighbors = [
         { dx: 1, dy: 0 },
@@ -291,19 +269,14 @@ export class WarehouseGenerator {
       ];
 
       for (const { dx, dy } of neighbors) {
-        // Disallow horizontal movement in Row 0 (Docking Row)
         if (node.y === 0 && dy === 0) {
           continue;
         }
 
-        // Disallow horizontal movement across docking approach lane in Row 1 to keep access lanes dedicated
         if (node.y === 1 && dy === 0 && node.isDockingZone) {
           continue;
         }
 
-        // WAITING BAYS: Dedicated parking stalls along WEST (x=0) and EAST (x=width-1).
-        // Only connect horizontally to the adjacent aisle (x=1 or x=width-2).
-        // Vertical edges into/out of waiting bays are disallowed to prevent through-traffic.
         if (node.navigationType === 'WAITING' && dy !== 0) {
           continue;
         }
@@ -312,11 +285,9 @@ export class WarehouseGenerator {
         const ny = node.y + dy;
         if (nx >= 0 && nx < width && ny >= 0 && ny < length) {
           const neighborNode = nodes.find(n => n.x === nx && n.y === ny);
-          // Disallow entering row 0 horizontally from anywhere
           if (ny === 0 && dy === 0) {
             continue;
           }
-          // Disallow entering waiting bays vertically from anywhere
           if (neighborNode?.navigationType === 'WAITING' && dy !== 0) {
             continue;
           }
@@ -327,14 +298,12 @@ export class WarehouseGenerator {
       }
     }
 
-    // Third pass: For each shelf, find its adjacent accessible aisle coordinate
     for (const shelf of shelfNodes) {
       if (!shelf.shelfId) continue;
 
       const relY = shelf.y - 4;
       const isTopShelf = relY >= 0 && relY % 4 === 0;
 
-      // Candidate adjacent coordinates: Top shelf faces North, bottom shelf faces South
       const candidates = isTopShelf
         ? [
             { x: shelf.x, y: shelf.y - 1 },
@@ -360,7 +329,6 @@ export class WarehouseGenerator {
       }
     }
 
-    // Seed realistic initial inventory products
     const initialProducts: Product[] = [
       {
         id: 'PRD-001',
@@ -369,7 +337,7 @@ export class WarehouseGenerator {
         quantity: 12,
         weightKg: 2.2,
         shelfId: 'A-03',
-        shelfCoord: { x: 0, y: 0 }, // will be mapped
+        shelfCoord: { x: 0, y: 0 },
         status: 'in_stock',
         color: '#3b82f6',
       },
@@ -452,7 +420,6 @@ export class WarehouseGenerator {
       },
     ];
 
-    // Map physical shelf coordinates to products
     for (const prod of initialProducts) {
       const shelfNode = shelfNodes.find(s => s.shelfId === prod.shelfId) || shelfNodes[0];
       if (shelfNode) {
