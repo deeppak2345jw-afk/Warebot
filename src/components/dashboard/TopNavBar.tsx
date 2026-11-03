@@ -53,8 +53,6 @@ export const TopNavBar: React.FC = () => {
     const ms = Math.floor((secs % 1) * 10);
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${ms}`;
   };
-
-  // Determine system status
   const errorCount = events.filter((e) => e.severity === 'error').length;
   let statusText = 'Simulation Running';
   let statusColor = 'bg-[#00F5A0]';
