@@ -490,7 +490,6 @@ export const RightInspector: React.FC = () => {
           </div>
         </div>
       ) : selectedShelfNode ? (
-        /* 2. SHELF INSPECTOR (Section 9: Clicking a shelf should open its details) */
         <div className="p-4 space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-[#183653]">
             <div className="flex items-center space-x-2">
@@ -633,7 +632,6 @@ export const RightInspector: React.FC = () => {
           )}
         </div>
       ) : (
-        /* 4. DEFAULT OVERVIEW WHEN NOTHING IS SELECTED */
         <div className="p-4 space-y-4">
           <div className="pb-3 border-b border-[#183653]">
             <div className="font-bold text-sm text-white font-mono">Warehouse Vitals</div>
