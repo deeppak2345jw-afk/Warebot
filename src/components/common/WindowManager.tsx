@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Maximize2, Minimize2, X, Minus, Square } from 'lucide-react';
 
 interface WindowManagerProps {
-  id: string; // unique key for localStorage persistence
+  id: string; 
   title: string;
   icon?: React.ReactNode;
   initialWidth?: number;
@@ -17,8 +17,6 @@ interface WindowManagerProps {
   className?: string;
   headerRightContent?: React.ReactNode;
 }
-
-// Global active Z-index counter
 let globalZIndex = 50;
 
 export const WindowManager: React.FC<WindowManagerProps> = ({
@@ -37,13 +35,11 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
   className = '',
   headerRightContent,
 }) => {
-  // Load initial state from localStorage if available
   const getSavedState = () => {
     try {
       const saved = localStorage.getItem(`robofleet_win_${id}`);
       if (saved) return JSON.parse(saved);
     } catch {
-      // ignore
     }
     return null;
   };
@@ -75,13 +71,9 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
   const isResizingRef = useRef<boolean>(false);
   const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const resizeStartRef = useRef<{ x: number; y: number; w: number; h: number }>({ x: 0, y: 0, w: 0, h: 0 });
-
-  // Bring window to front
   const bringToFront = useCallback(() => {
     setZIndex(++globalZIndex);
   }, []);
-
-  // Save state on changes
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -96,11 +88,8 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
         })
       );
     } catch {
-      // ignore
     }
   }, [id, position, size, isMinimized, isMaximized]);
-
-  // Dragging handlers
   const handleMouseDownHeader = (e: React.MouseEvent) => {
     if (isMaximized) return;
     bringToFront();
@@ -126,8 +115,6 @@ export const WindowManager: React.FC<WindowManagerProps> = ({
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
   };
-
-  // Resizing handlers
   const handleMouseDownResize = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isMaximized || isMinimized) return;
