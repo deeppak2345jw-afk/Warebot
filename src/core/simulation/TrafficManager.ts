@@ -27,10 +27,6 @@ export class TrafficManager {
     return `${x},${y}`;
   }
 
-  /**
-   * Initializes and annotates all warehouse nodes with two-way traffic lanes,
-   * directional flow, intersection boundaries, and safe queue slots.
-   */
   public initializeLanes(
     nodes: WarehouseNode[],
     graph: Graph,
@@ -41,8 +37,6 @@ export class TrafficManager {
     const { width, length } = config;
     const midX = Math.floor(width / 2);
 
-    // 1. Identify Cross-Aisles (vertical corridors)
-    // Vertical thoroughfares: Left (x=1,2), Center (x=midX-1, midX), Intermediate (x=5,6; x=13,14), Right (x=width-3, width-2)
     const verticalPairs: { xLeft: number; xRight: number; id: string; name: string }[] = [
       { xLeft: midX - 1, xRight: midX, id: 'CORR-V-CENTER', name: 'Central Vertical Thoroughfare' },
     ];
@@ -52,23 +46,17 @@ export class TrafficManager {
       verticalPairs.push({ xLeft: 13, xRight: 14, id: 'CORR-V-EAST', name: 'East Intermediate Cross-Aisle' });
     }
 
-    // Outer transit thoroughfares
     verticalPairs.push({ xLeft: 1, xRight: 2, id: 'CORR-V-OUTER-WEST', name: 'Outer West Transit Aisle' });
     verticalPairs.push({ xLeft: width - 3, xRight: width - 2, id: 'CORR-V-OUTER-EAST', name: 'Outer East Transit Aisle' });
 
-    // 2. Identify Horizontal Corridors
-    // North Crossway: y=2 (Westbound), y=3 (Eastbound)
-    // South Crossway: y=length-3 (Eastbound), y=length-2 (Westbound)
     const horizontalPairs: { yTop: number; yBottom: number; id: string; name: string; isCrossway: boolean }[] = [
       { yTop: 2, yBottom: 3, id: 'CORR-H-NORTH', name: 'North High-Speed Crossway', isCrossway: true },
       { yTop: length - 3, yBottom: length - 2, id: 'CORR-H-SOUTH', name: 'South High-Speed Crossway', isCrossway: true },
     ];
 
-    // Storage Aisles between shelf rows
     for (let y = 4; y <= length - 4; y++) {
       const relY = y - 4;
       if (relY % 4 === 2) {
-        // relY = 2 is y, relY = 3 is y+1
         const bankIdx = Math.floor(relY / 4) + 1;
         horizontalPairs.push({
           yTop: y,
@@ -80,19 +68,18 @@ export class TrafficManager {
       }
     }
 
-    // 3. Register Horizontal Corridors & Lanes
     for (const h of horizontalPairs) {
       const laneA: CorridorLane = {
         laneId: `${h.id}-LANE-WEST`,
         corridorId: h.id,
-        direction: 'WEST', // Top lane travels West (Left <- Right)
+        direction: 'WEST',
         coords: [],
         adjacentLaneId: `${h.id}-LANE-EAST`,
       };
       const laneB: CorridorLane = {
         laneId: `${h.id}-LANE-EAST`,
         corridorId: h.id,
-        direction: 'EAST', // Bottom lane travels East (Left -> Right)
+        direction: 'EAST',
         coords: [],
         adjacentLaneId: `${h.id}-LANE-WEST`,
       };
@@ -136,19 +123,18 @@ export class TrafficManager {
       });
     }
 
-    // 4. Register Vertical Corridors & Lanes
     for (const v of verticalPairs) {
       const laneA: CorridorLane = {
         laneId: `${v.id}-LANE-SOUTH`,
         corridorId: v.id,
-        direction: 'SOUTH', // Left lane travels South (Top -> Bottom)
+        direction: 'SOUTH',
         coords: [],
         adjacentLaneId: `${v.id}-LANE-NORTH`,
       };
       const laneB: CorridorLane = {
         laneId: `${v.id}-LANE-NORTH`,
         corridorId: v.id,
-        direction: 'NORTH', // Right lane travels North (Bottom -> Top)
+        direction: 'NORTH',
         coords: [],
         adjacentLaneId: `${v.id}-LANE-SOUTH`,
       };
@@ -157,7 +143,6 @@ export class TrafficManager {
         const leftNode = graph.getNodeByCoord(v.xLeft, y);
         const rightNode = graph.getNodeByCoord(v.xRight, y);
 
-        // Check if this cell is an intersection with a horizontal corridor
         const isHIntersection = horizontalPairs.some(h => y === h.yTop || y === h.yBottom);
 
         if (leftNode && leftNode.type !== 'shelf' && !leftNode.isBlocked && leftNode.navigationType !== 'WAITING') {
@@ -199,7 +184,6 @@ export class TrafficManager {
       });
     }
 
-    // 5. Intersections: mark 2x2 grid junction zones where corridors cross
     let intCounter = 1;
     for (const h of horizontalPairs) {
       for (const v of verticalPairs) {
@@ -215,7 +199,7 @@ export class TrafficManager {
           const n = graph.getNodeByCoord(coord.x, coord.y);
           if (n && n.type !== 'shelf' && !n.isBlocked) {
             n.isIntersection = true;
-            n.trafficDirection = 'BIDIRECTIONAL'; // multi-directional turning allowed
+            n.trafficDirection = 'BIDIRECTIONAL';
             const key = TrafficManager.coordKey(coord.x, coord.y);
             this.coordToIntersectionId.set(key, intId);
           }
@@ -230,13 +214,9 @@ export class TrafficManager {
       }
     }
 
-    // 6. Precompute Structured Queue Slots for Shared Resources (Shelves & Delivery Nodes)
     this.initializeQueueSlots(graph, shelfFacingAisles, deliveryNodes, width, length);
   }
 
-  /**
-   * Precomputes structured, non-overlapping queue slots for all shelves and delivery nodes.
-   */
   private initializeQueueSlots(
     graph: Graph,
     shelfFacingAisles: Map<string, GridCoord>,
@@ -244,11 +224,9 @@ export class TrafficManager {
     width: number,
     length: number
   ): void {
-    // 1. Shelf Queue Slots
     for (const [shelfId, facingAisle] of shelfFacingAisles.entries()) {
       const slots: QueueSlot[] = [];
 
-      // Slot 0: Interaction Cell (the picking spot facing the shelf)
       slots.push({
         queueId: `Q-${shelfId}`,
         resourceId: shelfId,
@@ -257,11 +235,9 @@ export class TrafficManager {
         status: 'AVAILABLE',
       });
 
-      // Find staging / queue slots extending along the approach lane or perpendicular corridor
       const facingNode = graph.getNodeByCoord(facingAisle.x, facingAisle.y);
       const approachDir = facingNode?.trafficDirection || 'EAST';
 
-      // Queue slots line up against the flow of the approach lane (so waiting robots queue behind the interaction cell)
       const queueDeltas = approachDir === 'EAST'
         ? [{ dx: -1, dy: 0 }, { dx: -2, dy: 0 }, { dx: -3, dy: 0 }]
         : [{ dx: 1, dy: 0 }, { dx: 2, dy: 0 }, { dx: 3, dy: 0 }];
@@ -288,11 +264,9 @@ export class TrafficManager {
       this.resourceQueues.set(shelfId, slots);
     }
 
-    // 2. Delivery Node Queue Slots
     for (const del of deliveryNodes) {
       const slots: QueueSlot[] = [];
 
-      // Slot 0: Delivery interaction cell (at length - 1)
       slots.push({
         queueId: `Q-${del.id}`,
         resourceId: del.id,
@@ -301,7 +275,6 @@ export class TrafficManager {
         status: 'AVAILABLE',
       });
 
-      // Queue slots line up North into South Crossway approach (y = length - 2, length - 3, etc.)
       const delQueueY = [del.coord.y - 1, del.coord.y - 2, del.coord.y - 3];
       let slotIdx = 1;
       for (const qy of delQueueY) {
@@ -324,14 +297,6 @@ export class TrafficManager {
     }
   }
 
-  // ==========================================
-  // STRUCTURED QUEUING FOR SHARED RESOURCES
-  // ==========================================
-
-  /**
-   * Requests an organized queue slot for a shared resource (shelf or delivery node).
-   * Guarantees distinct queue slots; no two robots will target the same staging cell.
-   */
   public requestQueueSlot(
     resourceId: string,
     robotId: string,
@@ -346,7 +311,6 @@ export class TrafficManager {
     const slots = this.resourceQueues.get(resourceId);
     if (!slots || slots.length === 0) return null;
 
-    // Check if robot already holds a slot in this queue
     const existing = slots.find(s => s.assignedRobotId === robotId);
     if (existing) {
       const isFront = existing.slotIndex === 0;
@@ -361,10 +325,8 @@ export class TrafficManager {
       };
     }
 
-    // Find first unoccupied and unassigned slot (starting from slot 0 for direct access)
     let assignedSlot: QueueSlot | undefined = undefined;
 
-    // Check Slot 0 (Interaction cell)
     if (slots[0].status === 'AVAILABLE') {
       assignedSlot = slots[0];
       assignedSlot.status = 'RESERVED';
@@ -378,7 +340,6 @@ export class TrafficManager {
       };
     }
 
-    // Resource is busy; assign next sequential staging slot (Slot 1, Slot 2, ...)
     for (let i = 1; i < slots.length; i++) {
       if (slots[i].status === 'AVAILABLE') {
         assignedSlot = slots[i];
@@ -394,13 +355,9 @@ export class TrafficManager {
       }
     }
 
-    // All predefined queue slots full: fallback to the last slot
     return null;
   }
 
-  /**
-   * Advances the queue when a robot completes access and vacates the resource.
-   */
   public advanceQueue(resourceId: string, vacatingRobotId: string): {
     nextRobotId?: string;
     nextSlotIndex?: number;
@@ -409,7 +366,6 @@ export class TrafficManager {
     const slots = this.resourceQueues.get(resourceId);
     if (!slots || slots.length === 0) return {};
 
-    // Release slot held by vacating robot
     for (const slot of slots) {
       if (slot.assignedRobotId === vacatingRobotId) {
         slot.assignedRobotId = undefined;
@@ -419,7 +375,6 @@ export class TrafficManager {
 
     const promotions: { robotId: string; newSlotIndex: number; newCoord: GridCoord }[] = [];
 
-    // Collect all waiting robots from staging slots in order
     const waitingRobots: string[] = [];
     for (let i = 1; i < slots.length; i++) {
       if (slots[i].assignedRobotId) {
@@ -429,14 +384,12 @@ export class TrafficManager {
       }
     }
 
-    // If Slot 0 is free and there are waiting robots, promote front robot to Slot 0!
     if (slots[0].status === 'AVAILABLE' && waitingRobots.length > 0) {
       const nextRobotId = waitingRobots.shift()!;
       slots[0].assignedRobotId = nextRobotId;
       slots[0].status = 'RESERVED';
       promotions.push({ robotId: nextRobotId, newSlotIndex: 0, newCoord: slots[0].coord });
 
-      // Compact remaining waiting robots forward into Slot 1, Slot 2, ...
       for (let i = 0; i < waitingRobots.length; i++) {
         const slotIdx = i + 1;
         if (slotIdx < slots.length) {
@@ -453,9 +406,6 @@ export class TrafficManager {
     return {};
   }
 
-  /**
-   * Releases any queue slot reserved or held by a robot.
-   */
   public releaseQueueSlot(resourceId: string, robotId: string): void {
     const slots = this.resourceQueues.get(resourceId);
     if (!slots) return;
@@ -468,10 +418,6 @@ export class TrafficManager {
     }
   }
 
-  // ==========================================
-  // CONTROLLED INTERSECTION MANAGEMENT
-  // ==========================================
-
   public getIntersectionId(x: number, y: number): string | undefined {
     return this.coordToIntersectionId.get(TrafficManager.coordKey(x, y));
   }
@@ -480,13 +426,6 @@ export class TrafficManager {
     return this.intersections.get(intId);
   }
 
-  /**
-   * Evaluates whether a robot can safely enter an intersection cell.
-   * Guarantees that a robot only enters if:
-   * 1. The specific intersection cell is NOT occupied or reserved by another robot.
-   * 2. The EXIT node from the intersection is free of physical obstruction (prevents stopping in the center!).
-   * Does NOT lock unrelated cells in the 2x2 junction, allowing parallel non-conflicting crossings.
-   */
   public requestIntersectionEntry(
     robot: Robot,
     intersectionNode: GridCoord,
@@ -500,13 +439,11 @@ export class TrafficManager {
     const key = TrafficManager.coordKey(intersectionNode.x, intersectionNode.y);
     const intId = this.coordToIntersectionId.get(key);
     if (!intId) {
-      // Not a formal intersection zone, proceed
       return { canEnter: true };
     }
 
     const zone = this.intersections.get(intId);
 
-    // 1. Is the target intersection node held by another crossing robot?
     const crossingRobot = this.nodeCrossingRobots.get(key);
     if (crossingRobot && crossingRobot !== robot.id) {
       return {
@@ -515,7 +452,6 @@ export class TrafficManager {
       };
     }
 
-    // 2. Is the target intersection node physically occupied by another robot?
     const occupant = collisionAvoidance.getOccupant(intersectionNode.x, intersectionNode.y);
     if (occupant && occupant !== robot.id) {
       return {
@@ -524,7 +460,6 @@ export class TrafficManager {
       };
     }
 
-    // 3. Is the target intersection node reserved by another robot?
     const res = collisionAvoidance.getReservation(intersectionNode.x, intersectionNode.y);
     if (res && res.owner !== robot.id) {
       return {
@@ -533,8 +468,6 @@ export class TrafficManager {
       };
     }
 
-    // 4. CRITICAL: Is the EXIT node from the intersection physically clear?
-    // A robot must NEVER enter an intersection unless it can completely clear it!
     const exitOccupant = collisionAvoidance.getOccupant(exitNode.x, exitNode.y);
     if (exitOccupant && exitOccupant !== robot.id) {
       return {
@@ -551,9 +484,6 @@ export class TrafficManager {
     return { canEnter: true };
   }
 
-  /**
-   * Releases intersection reservation once robot exits the zone.
-   */
   public releaseIntersection(robotId: string): void {
     for (const [key, id] of this.nodeCrossingRobots.entries()) {
       if (id === robotId) {
@@ -569,15 +499,6 @@ export class TrafficManager {
     }
   }
 
-  // ==========================================
-  // TEMPORARY OPPOSITE-LANE OVERTAKING (SECTION 16)
-  // ==========================================
-
-  /**
-   * Evaluates whether a robot can temporarily use the opposite lane to bypass a blockage.
-   * State flow:
-   * NORMAL_LANE -> OWN_LANE_BLOCKED -> CHECK_OPPOSITE_LANE -> RESERVE_OPPOSITE_LANE -> TEMPORARY_OPPOSITE_LANE
-   */
   public evaluateOppositeLaneOvertake(
     robot: Robot,
     blockedTarget: GridCoord,
@@ -598,37 +519,29 @@ export class TrafficManager {
     const oppCoord = currentNode.oppositeLaneCoord;
     const oppKey = TrafficManager.coordKey(oppCoord.x, oppCoord.y);
 
-    // 1. Check if the adjacent opposite-lane node is physically occupied
     if (collisionAvoidance.isOccupied(oppCoord.x, oppCoord.y)) {
       return { canOvertake: false, reason: 'Opposite lane node is currently occupied.' };
     }
 
-    // 2. Check if opposite-lane node is reserved
     const oppRes = collisionAvoidance.getReservation(oppCoord.x, oppCoord.y);
     if (oppRes && oppRes.owner !== robot.id) {
       return { canOvertake: false, reason: 'Opposite lane node is reserved by another robot.' };
     }
 
-    // 3. Check for oncoming traffic in the opposite lane!
-    // Must NOT enter opposite lane if oncoming traffic is approaching within 4 nodes!
     const oppNode = graph.getNodeByCoord(oppCoord.x, oppCoord.y);
     const oppDirection = oppNode?.trafficDirection;
 
     for (const other of allRobots) {
       if (other.id === robot.id) continue;
-      // Is other robot in the opposite lane?
       const otherNode = graph.getNodeByCoord(other.gridPosition.x, other.gridPosition.y);
       if (otherNode?.laneId === oppNode?.laneId) {
         const dist = Math.abs(other.gridPosition.x - oppCoord.x) + Math.abs(other.gridPosition.y - oppCoord.y);
         if (dist <= 4) {
-          // Check if moving towards us
           return { canOvertake: false, reason: `Oncoming robot ${other.name} detected in opposite lane (${dist} units away).` };
         }
       }
     }
 
-    // 4. Find safe return merge coordinate back into original lane (past the blockage)
-    // If blocked target was (x+1, y), return node would be (x+2, y)
     const dx = blockedTarget.x - robot.gridPosition.x;
     const dy = blockedTarget.y - robot.gridPosition.y;
     const returnCoord: GridCoord = {
@@ -638,7 +551,6 @@ export class TrafficManager {
 
     const returnNode = graph.getNodeByCoord(returnCoord.x, returnCoord.y);
     if (!returnNode || returnNode.isBlocked || returnNode.type === 'shelf') {
-      // Try adjacent crossway/intersection as return point
       return { canOvertake: true, oppositeCoord: oppCoord };
     }
 
@@ -649,10 +561,6 @@ export class TrafficManager {
       reason: `Opposite lane clear. Controlled bypass initiated past (${blockedTarget.x}, ${blockedTarget.y}).`,
     };
   }
-
-  // ==========================================
-  // GETTERS & UTILITIES
-  // ==========================================
 
   public getCorridor(corridorId: string): Corridor | undefined {
     return this.corridors.get(corridorId);
