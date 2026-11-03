@@ -2,11 +2,6 @@ import { Graph } from '../simulation/WarehouseGraph';
 import { PriorityQueue } from '../simulation/internalQueues';
 import { GridCoord, PathfindingResult } from '../types';
 import { PathfindingOptions } from './AStar';
-
-/**
- * Dijkstra's Algorithm using Priority Queue.
- * Explores concentric search contours without heuristic guidance.
- */
 export function dijkstraPathfinding(
   graph: Graph,
   startCoord: GridCoord,
