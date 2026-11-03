@@ -9,11 +9,8 @@ export interface CongestionData {
 }
 
 export class CollisionAvoidance {
-  // Map of node coordinate string "x,y" to NodeReservation metadata
   private reservations: Map<string, NodeReservation> = new Map();
-  // Map of node coordinate string "x,y" to current occupant robot ID
   private occupiedNodes: Map<string, string> = new Map();
-  // Hotspot visit frequency counter for congestion heatmap
   private nodeVisits: Map<string, number> = new Map();
 
   public static coordKey(x: number, y: number): string {
@@ -26,25 +23,18 @@ export class CollisionAvoidance {
       const key = CollisionAvoidance.coordKey(r.gridPosition.x, r.gridPosition.y);
       this.occupiedNodes.set(key, r.id);
 
-      // Increment visit counter
       const visits = this.nodeVisits.get(key) || 0;
       this.nodeVisits.set(key, visits + 1);
     }
   }
 
-  /**
-   * Resets and recalculates short-horizon rolling reservations with explicit metadata.
-   * Max horizon: current node + immediate next 1 step for actively moving robots.
-   */
   public updateReservations(robots: Robot[], graph: Graph, currentTime: number = 0): void {
     this.reservations.clear();
 
-    // Reset graph reservations
     for (const node of graph.getAllNodes()) {
       node.reservedBy = undefined;
     }
 
-    // High-priority robots reserve first
     const sortedRobots = [...robots].sort((a, b) => {
       const stateWeight = (r: Robot) =>
         r.cargoCount > 0 || r.state === 'moving_to_delivery' ? 2 : r.state === 'moving_to_pickup' ? 1 : 0;
@@ -70,7 +60,6 @@ export class CollisionAvoidance {
         continue;
       }
 
-      // Reserve current position (purpose: 'current_position')
       const currentRes: NodeReservation = {
         owner: robot.id,
         node: currCoord,
@@ -83,8 +72,6 @@ export class CollisionAvoidance {
       const currNode = graph.getNodeByCoord(currCoord.x, currCoord.y);
       if (currNode) currNode.reservedBy = robot.id;
 
-      // Reserve next 1 step on route ONLY if robot is actively moving
-      // Staged, yielding, waiting, or intersection-holding robots must NOT reserve forward steps!
       const isHolding =
         robot.state === 'yielding' ||
         robot.state === 'waiting' ||
@@ -100,7 +87,6 @@ export class CollisionAvoidance {
         const nextStep = robot.currentRoute[robot.currentRouteIndex];
         if (nextStep) {
           const nextKey = CollisionAvoidance.coordKey(nextStep.x, nextStep.y);
-          // Only reserve if not already reserved by a higher-priority robot
           if (!this.reservations.has(nextKey)) {
             const nextRes: NodeReservation = {
               owner: robot.id,
@@ -119,9 +105,6 @@ export class CollisionAvoidance {
     }
   }
 
-  /**
-   * Checks whether the given coordinate is occupied or reserved by another robot.
-   */
   public isConflict(x: number, y: number, queryingRobotId: string): boolean {
     const key = CollisionAvoidance.coordKey(x, y);
 
@@ -138,9 +121,6 @@ export class CollisionAvoidance {
     return false;
   }
 
-  /**
-   * Returns detailed conflict information including metadata and whether it's an occupant or reservation.
-   */
   public getConflictInfo(
     x: number,
     y: number,
@@ -183,9 +163,6 @@ export class CollisionAvoidance {
     return this.reservations.get(CollisionAvoidance.coordKey(x, y))?.owner;
   }
 
-  /**
-   * Immediately releases a single node reservation (e.g. when a robot advances past a node).
-   */
   public releaseNode(x: number, y: number, robotId: string, graph?: Graph): void {
     const key = CollisionAvoidance.coordKey(x, y);
     const res = this.reservations.get(key);
@@ -200,9 +177,6 @@ export class CollisionAvoidance {
     }
   }
 
-  /**
-   * Clears all reservations owned by a specific robot.
-   */
   public clearRobotReservation(robotId: string, graph?: Graph): void {
     for (const [key, res] of this.reservations.entries()) {
       if (res.owner === robotId) {
@@ -218,9 +192,6 @@ export class CollisionAvoidance {
     }
   }
 
-  /**
-   * Clears any reservation at a specific coordinate (regardless of owner).
-   */
   public clearReservationAt(x: number, y: number, graph?: Graph): void {
     const key = CollisionAvoidance.coordKey(x, y);
     this.reservations.delete(key);
@@ -232,9 +203,6 @@ export class CollisionAvoidance {
     }
   }
 
-  /**
-   * Explicitly places a reservation on a coordinate for a robot.
-   */
   public reserveNode(x: number, y: number, robotId: string, graph?: Graph): void {
     const key = CollisionAvoidance.coordKey(x, y);
     this.reservations.set(key, {
@@ -253,10 +221,6 @@ export class CollisionAvoidance {
     }
   }
 
-  /**
-   * Detects if two robots are in a TRUE head-to-head standoff along the same corridor axis.
-   * Perpendicular intersection approaches are NOT head-to-head deadlocks!
-   */
   public checkHeadToHead(robotA: Robot, robotB: Robot): boolean {
     const aNext = robotA.currentRoute && robotA.currentRoute.length > robotA.currentRouteIndex
       ? robotA.currentRoute[robotA.currentRouteIndex]
@@ -266,20 +230,16 @@ export class CollisionAvoidance {
       : undefined;
 
     if (aNext && bNext) {
-      // 1. Mutual swap: A wants B's current position, and B wants A's current position
       const aWantsB = aNext.x === robotB.gridPosition.x && aNext.y === robotB.gridPosition.y;
       const bWantsA = bNext.x === robotA.gridPosition.x && bNext.y === robotA.gridPosition.y;
       if (aWantsB && bWantsA) return true;
 
-      // 2. Facing opposite directions along the SAME corridor axis entering the same node
       if (aNext.x === bNext.x && aNext.y === bNext.y) {
         const dxA = aNext.x - robotA.gridPosition.x;
         const dyA = aNext.y - robotA.gridPosition.y;
         const dxB = bNext.x - robotB.gridPosition.x;
         const dyB = bNext.y - robotB.gridPosition.y;
 
-        // True head-to-head: opposite directions along the exact same line
-        // E.g. A moves East (1, 0) and B moves West (-1, 0), OR A moves South (0, 1) and B moves North (0, -1)
         const isOppositeAlongAxis =
           (dxA !== 0 && dxA === -dxB && dyA === 0 && dyB === 0) ||
           (dyA !== 0 && dyA === -dyB && dxA === 0 && dxB === 0);
@@ -290,7 +250,6 @@ export class CollisionAvoidance {
       }
     }
 
-    // 3. Mutual physical blocking: A blocked by B and B blocked by A
     const aBlockedByB = aNext && aNext.x === robotB.gridPosition.x && aNext.y === robotB.gridPosition.y;
     const bBlockedByA = bNext && bNext.x === robotA.gridPosition.x && bNext.y === robotA.gridPosition.y;
     return Boolean(aBlockedByB && bBlockedByA);
@@ -304,7 +263,6 @@ export class CollisionAvoidance {
     if (percentage > 35) level = 'High';
     else if (percentage > 15) level = 'Medium';
 
-    // Top 5 hotspots
     const hotspots: GridCoord[] = Array.from(this.nodeVisits.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
@@ -333,4 +291,3 @@ export class CollisionAvoidance {
     return this.nodeVisits;
   }
 }
-
