@@ -32,7 +32,6 @@ export function App() {
   const step = useSimulationStore((s) => s.step);
   const setSpeed = useSimulationStore((s) => s.setSpeed);
 
-  // Victory Confetti trigger
   useEffect(() => {
     if (scenarioStatus === 'won') {
       confetti({
@@ -44,10 +43,8 @@ export function App() {
     }
   }, [scenarioStatus]);
 
-  // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if user is typing in an input
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) {
         return;
       }
@@ -109,10 +106,10 @@ export function App() {
 
   return (
     <div className="flex flex-col w-full h-full bg-warehouse-darker text-gray-100 overflow-hidden font-sans">
-      {/* Top Header */}
+      {}
       <TopNavBar />
 
-      {/* Main Container: Left Nav + Active View */}
+      {}
       <div className="flex-1 flex overflow-hidden">
         <LeftNavSidebar />
         <main className="flex-1 flex overflow-hidden relative">
@@ -120,7 +117,7 @@ export function App() {
         </main>
       </div>
 
-      {/* Global Modals */}
+      {}
       {isEmergencyModalOpen && <EmergencyModal />}
       {isCreateTaskModalOpen && <CreateTaskModal />}
     </div>
