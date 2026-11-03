@@ -28,7 +28,6 @@ export const AnalyticsScreen: React.FC = () => {
   const tasks = useSimulationStore((s) => s.tasks);
   const simulationTime = useSimulationStore((s) => s.simulationTime);
 
-  // Prepare robot battery & workload chart data
   const robotData = robots.map((r) => ({
     name: r.name,
     battery: Math.round(r.battery),
@@ -36,12 +35,10 @@ export const AnalyticsScreen: React.FC = () => {
     distance: Math.round(r.distanceTraveled),
   }));
 
-  // Prepare throughput chart data
   const throughputData = metrics.throughputHistory.length > 0
     ? metrics.throughputHistory
     : [{ time: 0, completed: 0 }];
 
-  // Prepare algorithm comparison data
   const algoData = metrics.algorithmExecutionTimes.length > 0
     ? metrics.algorithmExecutionTimes
     : [
@@ -49,7 +46,6 @@ export const AnalyticsScreen: React.FC = () => {
         { algorithm: 'dijkstra', avgTimeMs: 2.1 },
       ];
 
-  // Export Analytics to JSON
   const exportJSON = () => {
     const data = {
       timestamp: new Date().toISOString(),
@@ -82,7 +78,6 @@ export const AnalyticsScreen: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Export Analytics to CSV
   const exportCSV = () => {
     let csv = 'Robot ID,Name,State,Battery (%),Tasks Completed,Distance Traveled (m)\n';
     robots.forEach((r) => {
@@ -101,7 +96,6 @@ export const AnalyticsScreen: React.FC = () => {
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-warehouse-dark text-gray-200 select-none">
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-warehouse-border">
           <div>
             <h1 className="text-xl font-bold text-white flex items-center gap-2">
@@ -131,7 +125,6 @@ export const AnalyticsScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Top KPI Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-warehouse-card p-4 rounded-xl border border-warehouse-border">
             <div className="flex items-center justify-between text-gray-400 text-xs font-mono">
@@ -184,9 +177,7 @@ export const AnalyticsScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Charts Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Chart 1: Tasks Delivered Over Time */}
           <div className="bg-warehouse-card p-5 rounded-xl border border-warehouse-border space-y-3">
             <div className="text-xs font-bold text-gray-300 font-mono uppercase tracking-wider flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -220,7 +211,6 @@ export const AnalyticsScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* Chart 2: Battery Reserves per Robot */}
           <div className="bg-warehouse-card p-5 rounded-xl border border-warehouse-border space-y-3">
             <div className="text-xs font-bold text-gray-300 font-mono uppercase tracking-wider flex items-center gap-2">
               <BatteryCharging className="w-4 h-4 text-cyan-400" />
@@ -241,7 +231,6 @@ export const AnalyticsScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* Chart 3: Workload Distribution (Tasks Done) */}
           <div className="bg-warehouse-card p-5 rounded-xl border border-warehouse-border space-y-3">
             <div className="text-xs font-bold text-gray-300 font-mono uppercase tracking-wider flex items-center gap-2">
               <Bot className="w-4 h-4 text-purple-400" />
@@ -262,7 +251,6 @@ export const AnalyticsScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* Chart 4: Pathfinding Algorithm Execution Latency */}
           <div className="bg-warehouse-card p-5 rounded-xl border border-warehouse-border space-y-3">
             <div className="text-xs font-bold text-gray-300 font-mono uppercase tracking-wider flex items-center gap-2">
               <Cpu className="w-4 h-4 text-amber-400" />
