@@ -42,8 +42,6 @@ export const PaneViewScreen: React.FC = () => {
   const setCreateTaskModalOpen = useUIStore((s) => s.setCreateTaskModalOpen);
   const selectedRobotId = useUIStore((s) => s.selectedRobotId);
   const selectRobot = useUIStore((s) => s.selectRobot);
-
-  // Allow swapping primary / secondary in PiP mode
   const [pipSwapped, setPipSwapped] = useState<boolean>(false);
 
   const formatTime = (secs: number) => {
