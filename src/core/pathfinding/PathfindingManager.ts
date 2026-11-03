@@ -24,8 +24,6 @@ export class PathfindingManager {
 
     let result = runPathfinding(options);
 
-    // Path Validation Check (Section 10):
-    // For every normal task path, verify that no node belongs to the DOCKING_ZONE.
     const mode = options?.navigationMode || 'NORMAL_TASK';
     if (mode === 'NORMAL_TASK' && result.path && result.path.length > 0) {
       let hasExitedDockingZone = startCoord.y >= 2;
@@ -35,11 +33,9 @@ export class PathfindingManager {
         if (coord.y >= 2) {
           hasExitedDockingZone = true;
         } else if (hasExitedDockingZone && coord.y < 2) {
-          // Re-entering docking zone after being in the warehouse is a violation!
           hasDockingZoneViolation = true;
           break;
         } else if (!hasExitedDockingZone && coord.y < 2 && coord.x !== startCoord.x) {
-          // Moving horizontally inside docking zone is a violation!
           hasDockingZoneViolation = true;
           break;
         }
