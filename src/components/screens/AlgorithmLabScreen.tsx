@@ -21,7 +21,6 @@ export const AlgorithmLabScreen: React.FC = () => {
   const [goal, setGoal] = useState<GridCoord>({ x: 13, y: 13 });
   const [walls, setWalls] = useState<Set<string>>(() => {
     const s = new Set<string>();
-    // Default obstacle maze pattern
     for (let y = 3; y < 12; y++) {
       if (y !== 7) s.add(`6,${y}`);
       if (y !== 8) s.add(`10,${y}`);
@@ -33,12 +32,11 @@ export const AlgorithmLabScreen: React.FC = () => {
   const [editMode, setEditMode] = useState<'wall' | 'start' | 'goal'>('wall');
   const [exploredIndex, setExploredIndex] = useState<number>(0);
   const [isAnimating, setIsAnimating] = useState<boolean>(false);
-  const [animSpeed, setAnimSpeed] = useState<number>(30); // ms per step
+  const [animSpeed, setAnimSpeed] = useState<number>(30);
 
   const [result, setResult] = useState<PathfindingResult | null>(null);
   const [benchmark, setBenchmark] = useState<Record<PathfindingAlgorithmType, PathfindingResult> | null>(null);
 
-  // Build lab graph
   const buildLabGraph = (): Graph => {
     const graph = new Graph();
     for (let y = 0; y < GRID_SIZE; y++) {
@@ -74,7 +72,6 @@ export const AlgorithmLabScreen: React.FC = () => {
     return graph;
   };
 
-  // Run selected algorithm
   const runSelected = () => {
     const graph = buildLabGraph();
     let res: PathfindingResult;
@@ -98,7 +95,6 @@ export const AlgorithmLabScreen: React.FC = () => {
     runSelected();
   }, [selectedAlgo, start, goal, walls]);
 
-  // Animation runner
   useEffect(() => {
     if (!isAnimating || !result) return;
 
@@ -115,7 +111,6 @@ export const AlgorithmLabScreen: React.FC = () => {
     return () => clearInterval(interval);
   }, [isAnimating, result, animSpeed]);
 
-  // Run concurrent benchmark across algorithms
   const runBenchmark = () => {
     const graph = buildLabGraph();
     setBenchmark({
@@ -134,7 +129,6 @@ export const AlgorithmLabScreen: React.FC = () => {
         setGoal({ x, y });
       }
     } else {
-      // Toggle wall
       if ((start.x === x && start.y === y) || (goal.x === x && goal.y === y)) return;
       const key = `${x},${y}`;
       const newWalls = new Set(walls);
@@ -154,7 +148,6 @@ export const AlgorithmLabScreen: React.FC = () => {
   return (
     <div className="flex-1 p-6 overflow-y-auto bg-warehouse-dark text-gray-200 select-none">
       <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-warehouse-border">
           <div>
             <h1 className="text-xl font-bold text-white flex items-center gap-2">
@@ -174,11 +167,8 @@ export const AlgorithmLabScreen: React.FC = () => {
           </button>
         </div>
 
-        {/* Main Sandbox Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left: Interactive Grid Canvas (7 cols) */}
           <div className="lg:col-span-7 bg-warehouse-card p-4 rounded-xl border border-warehouse-border space-y-4">
-            {/* Grid Controls */}
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <div className="flex items-center space-x-1 bg-warehouse-darker p-1 rounded-lg border border-warehouse-border">
                 <button
@@ -215,7 +205,6 @@ export const AlgorithmLabScreen: React.FC = () => {
               </button>
             </div>
 
-            {/* 15x15 Interactive Grid */}
             <div
               className="grid gap-1 bg-warehouse-darker p-3 rounded-lg border border-warehouse-border aspect-square w-full max-w-[480px] mx-auto"
               style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))` }}
@@ -255,7 +244,6 @@ export const AlgorithmLabScreen: React.FC = () => {
               })}
             </div>
 
-            {/* Playback Controls */}
             <div className="flex items-center justify-between pt-2 border-t border-warehouse-border">
               <div className="flex items-center space-x-2">
                 <button
@@ -300,16 +288,13 @@ export const AlgorithmLabScreen: React.FC = () => {
                 </button>
               </div>
 
-              {/* Exploration Progress */}
               <div className="text-xs font-mono text-gray-400">
                 Frontier Step: <span className="text-cyan-400 font-bold">{exploredIndex}</span> / {result?.exploredNodes.length || 0}
               </div>
             </div>
           </div>
 
-          {/* Right: Algorithm Selector, Live Metrics & Explanations (5 cols) */}
           <div className="lg:col-span-5 space-y-4">
-            {/* Algorithm Selector */}
             <div className="bg-warehouse-card p-4 rounded-xl border border-warehouse-border space-y-3">
               <div className="text-xs font-bold text-gray-300 uppercase tracking-wider font-mono">
                 Select Pathfinding Algorithm
@@ -335,7 +320,6 @@ export const AlgorithmLabScreen: React.FC = () => {
               </div>
             </div>
 
-            {/* Current Search Metrics */}
             {result && (
               <div className="bg-warehouse-card p-4 rounded-xl border border-warehouse-border space-y-3 font-mono">
                 <div className="text-xs font-bold text-gray-300 uppercase tracking-wider">
@@ -364,7 +348,6 @@ export const AlgorithmLabScreen: React.FC = () => {
               </div>
             )}
 
-            {/* Benchmark Table (when run) */}
             {benchmark && (
               <div className="bg-warehouse-card p-4 rounded-xl border border-purple-800/40 space-y-3 font-mono">
                 <div className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
@@ -396,7 +379,6 @@ export const AlgorithmLabScreen: React.FC = () => {
               </div>
             )}
 
-            {/* Educational takeaway card */}
             <div className="bg-warehouse-darker p-4 rounded-xl border border-warehouse-border space-y-2 text-xs">
               <div className="font-bold text-cyan-400 flex items-center gap-1.5 font-mono">
                 <HelpCircle className="w-3.5 h-3.5" />
