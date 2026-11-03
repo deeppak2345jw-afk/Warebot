@@ -40,8 +40,6 @@ export const AlgorithmRouteInspector: React.FC = () => {
   const [selectedAlgo, setSelectedAlgo] = useState<PathfindingAlgorithmType>(config.pathfindingAlgorithm || 'astar');
 
   const selectedRobot = robots.find((r) => r.id === selectedRobotId);
-
-  // Compute test comparison between A* and Dijkstra for the selected robot's current goal or target shelf
   const comparisonResults = useMemo(() => {
     if (!engine || !engine.graph) return null;
 
@@ -59,7 +57,6 @@ export const AlgorithmRouteInspector: React.FC = () => {
       } else if (selectedRobot.currentRoute && selectedRobot.currentRoute.length > 0) {
         goalCoord = selectedRobot.currentRoute[selectedRobot.currentRoute.length - 1];
       } else {
-        // Fallback to first shelf
         const firstShelf = nodes.find((n) => n.type === 'shelf');
         if (firstShelf) {
           goalCoord = { x: firstShelf.x, y: firstShelf.y };
@@ -95,7 +92,6 @@ export const AlgorithmRouteInspector: React.FC = () => {
     }
   }, [engine, selectedRobot, nodes]);
 
-  // Handle frontier overlay update
   const handleToggleFrontier = (enabled: boolean) => {
     setShowFrontier(enabled);
     if (!enabled) {
