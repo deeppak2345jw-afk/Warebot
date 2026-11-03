@@ -26,11 +26,6 @@ export function heuristic(
   }
   return dx + dy;
 }
-
-/**
- * A* Pathfinding Algorithm using Priority Queue (Min-Heap).
- * Guarantees optimal path while minimizing explored nodes using admissible heuristic.
- */
 export function aStarPathfinding(
   graph: Graph,
   startCoord: GridCoord,
@@ -73,8 +68,6 @@ export function aStarPathfinding(
       visitedSet.add(currentId);
       exploredCoords.push({ x: currentNode.x, y: currentNode.y });
     }
-
-    // Reached goal
     if (currentNode.x === goalCoord.x && currentNode.y === goalCoord.y) {
       const path: GridCoord[] = [];
       let curr: string | undefined = currentId;
@@ -119,8 +112,6 @@ export function aStarPathfinding(
       }
     }
   }
-
-  // No path found
   return {
     path: [],
     exploredNodes: exploredCoords,
