@@ -57,10 +57,10 @@ export type NavigationMode = 'NORMAL_TASK' | 'CHARGING_TASK' | 'LEAVING_DOCK';
 export type NavigationType = 'NORMAL' | 'DOCK' | 'DOCK_APPROACH' | 'RESTRICTED' | 'WAITING';
 
 export interface NodeReservation {
-  owner: string; // robotId
+  owner: string;
   node: GridCoord;
   createdAt: number;
-  ttl: number; // in seconds
+  ttl: number; 
   expectedRelease: number;
   purpose: 'current_position' | 'next_step' | 'staging' | 'docking' | 'waiting';
 }
@@ -155,13 +155,13 @@ export interface WarehouseNode {
 export type DockState = 'AVAILABLE' | 'CHARGING' | 'OCCUPIED';
 
 export interface IntegratedDock {
-  id: string; // e.g. DOCK-1
+  id: string; 
   nodeId: string;
   coord: GridCoord;
-  assigned_robot: string; // e.g. R-1
+  assigned_robot: string; 
   state: DockState;
-  charging_speed: number; // % per time unit (default 2)
-  queue: string[]; // queued robot IDs
+  charging_speed: number; 
+  queue: string[]; 
   isOperational: boolean;
   totalEnergyDelivered: number;
 }
@@ -212,18 +212,18 @@ export interface Robot {
   position: Position3D;
   gridPosition: GridCoord;
   targetGridPosition?: GridCoord;
-  heading: number; // radians
+  heading: number; 
   targetHeading?: number;
-  battery: number; // 0 - 100
-  maxSpeed: number; // grid units / sec
-  loadCapacity: number; // kg
-  maxCapacity: number; // strictly 3 items maximum
-  cargoCount: number; // current carried item count (0 - 3)
+  battery: number;
+  maxSpeed: number; 
+  loadCapacity: number;
+  maxCapacity: number; 
+  cargoCount: number; 
   cargoItems: CarriedItem[];
   isCarrying: boolean;
   carriedItemName?: string;
   state: RobotState;
-  isPaused?: boolean; // Developer debug & manual pause
+  isPaused?: boolean; 
   currentTaskId?: string;
   targetShelfId?: string;
   targetDeliveryNodeId?: string;
@@ -245,8 +245,7 @@ export interface Robot {
   lastLogicalNode?: GridCoord;
   lastMovementTick?: number;
   animationTimer: number;
-  health: number; // 0 - 100
-  // Adaptive Coordination, Staging & Backoff
+  health: number;
   yieldTimer?: number;
   yieldTargetRobotId?: string;
   stagedAtCoord?: GridCoord;
@@ -264,7 +263,7 @@ export interface Robot {
     targetDeliveryNodeId?: string;
     destinationCoord: GridCoord;
   };
-  // Lane discipline, opposite lane bypass & structured queuing
+  
   currentLaneId?: string;
   assignedTrafficDirection?: TrafficDirection;
   isTemporaryOppositeLane?: boolean;
@@ -282,14 +281,12 @@ export interface Robot {
   blockingEntity?: string;
   estimatedWaitTime?: number;
   maximumWaitThreshold?: number;
-  // Route stability & oscillation prevention
   routeVersion?: number;
   routeBlockedSince?: number;
   lastReplanTime?: number;
   replanCount?: number;
   replanReason?: string;
   previousRoutes?: GridCoord[][];
-  // Breakdown Recovery
   isRecoveryRobot?: boolean;
   recoveringFromRobotId?: string;
 }
@@ -345,8 +342,8 @@ export interface WarehouseTask {
   deliveryNodeId: string;
   pickupNodeId: string;
   destinationNodeId: string;
-  pickupCoord: GridCoord; // Accessible aisle coordinate facing the shelf
-  shelfCoord: GridCoord;  // Physical shelf coordinate
+  pickupCoord: GridCoord;
+  shelfCoord: GridCoord;
   destinationCoord: GridCoord;
   createdAt: number;
   deadline?: number;
@@ -368,7 +365,6 @@ export interface WarehouseTask {
   subtaskIndex?: number;
   totalSubtasks?: number;
   isSubtask?: boolean;
-  // Breakdown item recovery tracking
   recoveryLocation?: GridCoord;
   brokenRobotId?: string;
   recoveredAt?: number;
@@ -403,12 +399,12 @@ export interface WarehouseConfig {
   packingStationCount: number;
   pickupStationCount: number;
   deliveryNodeCount: number;
-  autoTaskGeneration: boolean; // default: FALSE
-  taskGenerationRate: number; // tasks per minute (used only if autoTaskGeneration is enabled)
-  robotSpeed: number; // units/s
-  batteryCapacity: number; // mAh
-  batteryDischargeRate: number; // % per unit
-  breakdownProbability: number; // 0 to 1
+  autoTaskGeneration: boolean; 
+  taskGenerationRate: number;
+  robotSpeed: number; 
+  batteryCapacity: number; 
+  batteryDischargeRate: number; 
+  breakdownProbability: number; 
   obstacleFrequency: number;
   pathfindingAlgorithm: PathfindingAlgorithmType;
   allocationStrategy: AllocationStrategyType;
@@ -460,7 +456,7 @@ export interface Scenario {
   failureCondition: string;
   initialConfig: Partial<WarehouseConfig>;
   targetTasks: number;
-  timeLimit: number; // seconds (0 for no limit)
+  timeLimit: number;
   minBatteryAvg: number;
   maxBreakdownsAllowed: number;
 }
