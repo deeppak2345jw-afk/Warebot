@@ -16,11 +16,6 @@ export function manhattanDistance(
 ): number {
   return Math.abs(x1 - x2) + Math.abs(y1 - y2);
 }
-
-/**
- * Calculates allocation score and generates natural language reasoning
- * based on selected strategy.
- */
 export function evaluateRobotForTask(
   robot: Robot,
   task: WarehouseTask,
@@ -47,8 +42,6 @@ export function evaluateRobotForTask(
 
   let score = 0;
   let reasoning = '';
-
-  // Baseline penalty for robots not idle or returning to base
   const statePenalty = (robot.state === 'idle' || robot.state === 'returning' || robot.state === 'returning_to_dock') ? 0 : 50;
   const batteryViable = robot.battery >= 20;
 
@@ -60,7 +53,6 @@ export function evaluateRobotForTask(
     }
 
     case 'highest_battery': {
-      // Lower score is better
       score = (100 - robot.battery) * 2 + distToPickup * 0.5 + statePenalty;
       reasoning = `Robot ${robot.name} selected: highest battery reserve (${robot.battery.toFixed(0)}%), distance ${distToPickup.toFixed(1)}m.`;
       break;
@@ -81,7 +73,6 @@ export function evaluateRobotForTask(
     case 'priority_aware': {
       const priorityWeights = { low: 1, normal: 1.5, high: 2.5, critical: 4 };
       const pWeight = priorityWeights[task.priority];
-      // For critical tasks, heavily penalize distance and favor top battery & high speed
       score = (distToPickup / speed) * pWeight + (100 - robot.battery) * 0.3 + statePenalty * 2;
       reasoning = `Robot ${robot.name} selected for ${task.priority.toUpperCase()} priority task: fast response time (${(distToPickup / speed).toFixed(1)}s), healthy battery (${robot.battery.toFixed(0)}%).`;
       break;
@@ -98,8 +89,6 @@ export function evaluateRobotForTask(
 
     case 'cost_based_adaptive':
     default: {
-      // Comprehensive multi-factor cost function:
-      // Cost = w1*dist + w2*(100-battery) + w3*tasksCompleted + w4*time - w5*health
       const wDist = 1.2;
       const wBat = 0.8;
       const wTasks = 1.5;
