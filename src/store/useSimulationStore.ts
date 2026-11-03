@@ -44,7 +44,6 @@ interface SimulationStoreState {
   activeScenario: Scenario | null;
   scenarioStatus: 'in_progress' | 'won' | 'lost';
 
-  // Actions
   start: () => void;
   pause: () => void;
   toggleRunning: () => void;
@@ -106,7 +105,7 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => ({
   waitingNodes: initialEngine.waitingNodes,
   products: initialEngine.getProducts(),
   pickupStations: initialEngine.pickupStations,
-  isRunning: true, // RUNNING BY DEFAULT SO ROBOTS MOVE IMMEDIATELY
+  isRunning: true, 
   speedMultiplier: 1.0,
   simulationTime: 0,
   activeScenario: null,
@@ -337,10 +336,6 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => ({
     syncState();
   },
 }));
-
-// =========================================================================
-// CENTRALIZED AUTHORITATIVE SIMULATION RUNNER (Decoupled from UI screens)
-// =========================================================================
 let globalSimLoopId: number | null = null;
 let lastSimLoopTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
 let simSyncAccumulator = 0;
@@ -370,7 +365,6 @@ export function startGlobalSimulationLoop() {
   globalSimLoopId = requestAnimationFrame(loop);
 }
 
-// Automatically start continuous simulation loop in browser environment
 if (typeof window !== 'undefined') {
   startGlobalSimulationLoop();
 }
