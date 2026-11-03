@@ -2,12 +2,6 @@ import { Robot, GridCoord, DeadlockCycle } from '../types';
 import { Graph } from './WarehouseGraph';
 import { CollisionAvoidance } from './CollisionAvoidance';
 
-/**
- * DeadlockDetector
- * Models robot wait-for dependencies as a Directed Graph (Wait-For Graph)
- * and detects circular deadlocks (e.g. R1 -> R2 -> R3 -> R1 or R1 <-> R2).
- * Formulates backtrack recovery by selecting the lowest effective priority robot to yield.
- */
 export class DeadlockDetector {
   private activeDeadlocks: DeadlockCycle[] = [];
   private totalDeadlocksDetected: number = 0;
@@ -15,15 +9,11 @@ export class DeadlockDetector {
 
   constructor() {}
 
-  /**
-   * Calculates effective priority for a robot including Priority Aging to prevent starvation.
-   */
   public calculateEffectivePriority(robot: Robot, taskPriority?: string): number {
     let score = 0;
 
-    // 1. State weight
     if (robot.state === 'moving_to_delivery' || robot.state === 'delivering' || robot.cargoCount > 0) {
-      score += 100; // Carrying cargo has highest priority to clear aisles
+      score += 100;
     } else if (robot.state === 'picking_up' || robot.state === 'aligning_pickup') {
       score += 80;
     } else if (robot.state === 'moving_to_pickup') {
@@ -36,15 +26,12 @@ export class DeadlockDetector {
       score += 10;
     }
 
-    // 2. Task priority
     if (taskPriority === 'critical') score += 40;
     else if (taskPriority === 'high') score += 25;
     else if (taskPriority === 'normal') score += 10;
 
-    // 3. Priority Aging: +5 points per second spent waiting
     score += Math.min(150, Math.floor(robot.waitTime * 5.0));
 
-    // 4. Tie-breaker based on ID hash
     const idNum = parseInt(robot.id.replace(/\D/g, ''), 10) || 0;
     score += (idNum % 10) * 0.1;
 
@@ -52,17 +39,11 @@ export class DeadlockDetector {
     return robot.effectivePriority;
   }
 
-  /**
-   * Constructs the Wait-For Graph (WFG) and checks for circular dependencies.
-   * Returns a DeadlockCycle if a circular wait is detected, or null if traffic is progressing normally.
-   */
   public detectDeadlock(
     robots: Robot[],
     collisionAvoidance: CollisionAvoidance,
     graph: Graph
   ): DeadlockCycle | null {
-    // 1. Build Adjacency List for the Wait-For Graph
-    // Key: Robot ID, Value: Array of Robot IDs that this robot is waiting on
     const wfg: Map<string, string[]> = new Map();
     const robotMap: Map<string, Robot> = new Map();
 
@@ -72,7 +53,6 @@ export class DeadlockDetector {
     }
 
     for (const r of robots) {
-      // Robot must be waiting or blocked with an active route
       const isWaiting =
         r.waitTime >= 0.5 ||
         r.state === 'waiting_for_path' ||
@@ -86,7 +66,6 @@ export class DeadlockDetector {
       const nextTarget = r.currentRoute[r.currentRouteIndex];
       if (!nextTarget) continue;
 
-      // Check who occupies or reserves this next target
       const conflict = collisionAvoidance.getConflictInfo(nextTarget.x, nextTarget.y, r.id);
       if (conflict.isConflict && conflict.conflictingRobotId && conflict.conflictingRobotId !== r.id) {
         const edges = wfg.get(r.id) || [];
@@ -97,7 +76,6 @@ export class DeadlockDetector {
       }
     }
 
-    // 2. Cycle Detection using Depth-First Search (DFS)
     const visited = new Set<string>();
     const recStack = new Set<string>();
     const parentMap = new Map<string, string>();
@@ -114,7 +92,6 @@ export class DeadlockDetector {
           parentMap.set(neighborId, nodeId);
           if (dfs(neighborId)) return true;
         } else if (recStack.has(neighborId)) {
-          // Cycle found! Backtrack to trace cycle
           const cycle: string[] = [neighborId];
           let curr = nodeId;
           while (curr !== neighborId) {
@@ -141,21 +118,17 @@ export class DeadlockDetector {
       return null;
     }
 
-    // 3. Formulate Deadlock Cycle Resolution
     const cycleRobots: Robot[] = cycle
       .map((id: string) => robotMap.get(id))
       .filter((r): r is Robot => r !== undefined);
 
     if (cycleRobots.length < 2) return null;
 
-    // Rank robots in cycle by effective priority
     cycleRobots.sort((a, b) => this.calculateEffectivePriority(a) - this.calculateEffectivePriority(b));
 
-    // Victim is the lowest effective priority robot
     const victim = cycleRobots[0];
     const highestPriorityRobot = cycleRobots[cycleRobots.length - 1];
 
-    // Find safe clearance coordinate for victim
     const clearanceCoord = this.findDeadlockClearance(victim, highestPriorityRobot, collisionAvoidance, graph);
     if (!clearanceCoord) return null;
 
@@ -175,9 +148,6 @@ export class DeadlockDetector {
     return deadlock;
   }
 
-  /**
-   * Finds a safe clearance cell for the deadlock victim that does not collide with the cycle.
-   */
   private findDeadlockClearance(
     victim: Robot,
     priorityRobot: Robot,
@@ -189,18 +159,15 @@ export class DeadlockDetector {
 
     const neighbors = graph.getNeighbors(node.id, { ignoreBlocked: false, ignoreReserved: true });
 
-    // Try direct adjacent neighbors that are free
     for (const { node: n } of neighbors) {
       if (n.isBlocked || n.type === 'shelf') continue;
       if (collisionAvoidance.isOccupied(n.x, n.y)) continue;
 
-      // Do not step onto priority robot's current position
       if (n.x === priorityRobot.gridPosition.x && n.y === priorityRobot.gridPosition.y) continue;
 
       return { x: n.x, y: n.y };
     }
 
-    // Fallback: BFS up to 4 steps
     const visited = new Set<string>();
     visited.add(Graph.coordKey(victim.gridPosition.x, victim.gridPosition.y));
     const queue: { coord: GridCoord; dist: number }[] = [{ coord: { ...victim.gridPosition }, dist: 0 }];
